@@ -1,0 +1,26 @@
+{
+    "os": "Windows-10-10.0.18362-SP0",
+    "python": "3.8.12",
+    "heartbeatAt": "2022-02-16T00:45:58.841213",
+    "startedAt": "2022-02-16T00:45:53.879382",
+    "docker": null,
+    "cpu_count": 8,
+    "cuda": null,
+    "args": [
+        "--ip=127.0.0.1",
+        "--stdin=9003",
+        "--control=9001",
+        "--hb=9000",
+        "--Session.signature_scheme=\"hmac-sha256\"",
+        "--Session.key=b\"510c8c26-8ad5-451c-a8c0-b6e17b5fe450\"",
+        "--shell=9002",
+        "--transport=\"tcp\"",
+        "--iopub=9004",
+        "--f=C:\\Users\\zapfa\\AppData\\Local\\Temp\\tmp-8616G7eg9jJ3fcmp.json"
+    ],
+    "state": "running",
+    "program": "<python with no main file>",
+    "host": "Somnambulist",
+    "username": "EBAY-VERKAUF",
+    "executable": "N:\\ProgramData\\Anaconda3\\envs\\Thesis\\python.exe"
+}
