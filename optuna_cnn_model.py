@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, random_split
@@ -18,7 +17,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing
 
 from config import casting_args as args
-
+from laplace import Laplace
 # Data Import
 
 train_set_path = args['train_set_path']
