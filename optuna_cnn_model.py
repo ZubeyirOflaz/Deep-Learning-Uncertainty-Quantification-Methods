@@ -9,6 +9,7 @@ import pickle
 #import helper
 import logging
 import time
+import os
 
 import optuna
 from optuna.trial import TrialState
@@ -16,12 +17,13 @@ from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing
 
-from config import datasets as args
+from config import dataset_paths as args
 from laplace import Laplace
 # Data Import
 
-train_set_path = args['casting_train']
-test_set_path = args['casting_test']
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+train_set_path = ROOT_DIR + args['casting_train']
+test_set_path = ROOT_DIR + args['casting_test']
 
 batch_size = 128
 image_resolution = 127
