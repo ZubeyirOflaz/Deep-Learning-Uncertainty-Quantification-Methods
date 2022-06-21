@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, random_split
 import pickle
-import helper
+#import helper
 import logging
 import time
 
@@ -16,12 +16,12 @@ from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing
 
-from config import casting_args as args
+from config import datasets as args
 from laplace import Laplace
 # Data Import
 
-train_set_path = args['train_set_path']
-test_set_path = args['test_set_path']
+train_set_path = args['casting_train']
+test_set_path = args['casting_test']
 
 batch_size = 128
 image_resolution = 127
