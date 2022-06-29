@@ -1,4 +1,3 @@
-import laplace
 import torch
 from laplace import Laplace
 from torchvision import datasets, transforms
