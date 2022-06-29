@@ -14,6 +14,8 @@ import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
 
 laplace_target = 'arrhythmia'
+
+
 def predict(dataloader, model, laplace=False):
     py = []
 
@@ -43,8 +45,8 @@ def check_accuracy(loader, model):
 
         print(f'Got {num_correct} / {num_samples} with accuracy {float(num_correct) / float(num_samples) * 100:.2f}')
 
-
     # Laplace approximation for casting dataset
+
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -74,37 +76,34 @@ if laplace_target == 'casting':
     test_set = datasets.ImageFolder(casting_test_path, transform=transformations)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    check_accuracy(test_loader,casting_model)
+    check_accuracy(test_loader, casting_model)
     targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
 
     probs_map = predict(test_loader, casting_model, laplace=False)
-    #_, prediction = probs_map.max(1)
+    # _, prediction = probs_map.max(1)
     acc_map = (probs_map.argmax(-1) == targets).float().mean()
-    #ece_map = ECE(bins=2).measure(probs_map.detach().numpy(), targets.detach().numpy())
+    # ece_map = ECE(bins=2).measure(probs_map.detach().numpy(), targets.detach().numpy())
     nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
     print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
-
 
     torch.cuda.empty_cache()
     subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
     subnetwork_indices = subnetwork_mask.select()
 
     subnetwork_indices = torch.LongTensor(subnetwork_indices.cpu())
-    #subnetwork_mask = ModuleNameSubnetMask(casting_model, module_names=['layer.9', 'layer.12'])
-    #subnetwork_mask.select()
-    #subnetwork_indices = subnetwork_mask.indices
-
+    # subnetwork_mask = ModuleNameSubnetMask(casting_model, module_names=['layer.9', 'layer.12'])
+    # subnetwork_mask.select()
+    # subnetwork_indices = subnetwork_mask.indices
 
     la = Laplace(casting_model, likelihood='classification', subset_of_weights='subnetwork',
-                 hessian_structure='full',subnetwork_indices=subnetwork_indices)
+                 hessian_structure='full', subnetwork_indices=subnetwork_indices)
     la.fit(train_loader)
 
-    pred = predict(test_loader,la, laplace=True)
-
+    pred = predict(test_loader, la, laplace=True)
 
     probs_laplace = predict(test_loader, la, laplace=True)
     acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
-    #ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
+    # ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
     nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
 
     print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
