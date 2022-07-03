@@ -4,8 +4,8 @@ casting_args = {
 
 }
 dataset_paths = {
-    'arrhythmia_train': '\\Datasets\\arrhythmia\\arrhythmia_train.pt',
-    'arrhythmia_test': '\\Datasets\\arrhythmia\\arrhythmia_test.pt',
+    'arrhythmia_train': '\\Datasets\\arrhythmia\\arrhythmia_train.npy',
+    'arrhythmia_test': '\\Datasets\\arrhythmia\\arrhythmia_test.npy',
     'casting_train': '\\Datasets\\casting_modified\\train\\',
     'casting_test': '\\Datasets\\casting_modified\\test\\'
 }
