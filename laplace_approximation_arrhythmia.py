@@ -8,12 +8,13 @@ from netcal.metrics import ECE
 import pandas
 import numpy
 
-from torch.utils.data import Dataset, random_split
+from torch.utils.data import Dataset, TensorDataset
 import pickle
 # import helper
 from config import dataset_paths, models, casting_args
 import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
+
 
 def check_accuracy(loader, model):
     num_correct = 0
@@ -24,6 +25,7 @@ def check_accuracy(loader, model):
         for x, y in loader:
             x = x.to(device='cuda')
             y = y.to(device='cuda')
+            y = torch.reshape(y, (-1,))
 
             scores = model(x)
             _, predictions = scores.max(1)
@@ -31,6 +33,17 @@ def check_accuracy(loader, model):
             num_samples += predictions.size(0)
 
         print(f'Got {num_correct} / {num_samples} with accuracy {float(num_correct) / float(num_samples) * 100:.2f}')
+def predict(dataloader, model, laplace=False):
+    py = []
+
+    for x, _ in dataloader:
+        if laplace:
+            py.append(model(x.cuda()))
+        else:
+            py.append(torch.softmax(model(x.cuda()), dim=-1))
+
+    return torch.cat(py).cpu()
+
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,8 +67,28 @@ num_workers = 0
 params = {'batch_size': batch_size,
           'num_workers': num_workers}
 
-arrhythmia_train = arrhythmia_train.tolist()
-train_loader = DataLoader(torch.tensor(arrhythmia_train),shuffle=True, **params)
-test_loader = DataLoader(arrhythmia_test,shuffle=False,**params)
+train_x = arrhythmia_train[:, 0]
+train_y = arrhythmia_train[:, 1]
 
-check_accuracy(train_loader,arrhythmia_model)
+train_x = torch.tensor([i.numpy() for i in train_x]).to(torch.device('cuda'))
+train_y = torch.tensor([i.numpy() for i in train_y]).to(torch.device('cuda'))
+train = TensorDataset(train_x, train_y)
+train_loader = DataLoader(train, shuffle=False, **params)
+
+test_x = arrhythmia_test[:,0]
+test_y = arrhythmia_test[:,1]
+
+test_x = torch.tensor([i.numpy() for i in test_x]).to(torch.device('cuda'))
+test_y = torch.tensor([i.numpy() for i in test_y]).to(torch.device('cuda'))
+test = TensorDataset(test_x, test_y)
+
+test_loader = DataLoader(test, shuffle=False, **params)
+
+arrhythmia_model = arrhythmia_model.to(torch.device('cuda'))
+targets = torch.cat([y for x, y in train_loader], dim=0).cpu()
+targets = torch.reshape(targets,(-1,))
+
+probs_map = predict(train_loader, arrhythmia_model)
+acc_map = (probs_map.argmax(-1) == targets).float().mean()
+
+check_accuracy(test_loader,arrhythmia_model)
