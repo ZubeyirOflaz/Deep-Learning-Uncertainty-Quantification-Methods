@@ -13,5 +13,8 @@ models = {
     'base_models': {
         'arrhythmia': 'Models\\arrhythmia_base.pickle',
         'casting' : 'Models\\casting_base.pickle'
+    },
+    'laplace_approximation':{
+      'casting' : 'Models\\laplace_approximation_casting.pkl'
     }
 }

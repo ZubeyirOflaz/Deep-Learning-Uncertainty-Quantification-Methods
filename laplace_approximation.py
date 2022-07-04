@@ -85,13 +85,14 @@ nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 
 torch.cuda.empty_cache()
-subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
-subnetwork_indices = subnetwork_mask.select()
+#subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
+#subnetwork_indices = subnetwork_mask.select()
+
+subnetwork_mask = ModuleNameSubnetMask(casting_model, module_names=['15'])
+subnetwork_mask.select()
+subnetwork_indices = subnetwork_mask.indices
 
 subnetwork_indices = torch.LongTensor(subnetwork_indices.cpu())
-# subnetwork_mask = ModuleNameSubnetMask(casting_model, module_names=['layer.9', 'layer.12'])
-# subnetwork_mask.select()
-# subnetwork_indices = subnetwork_mask.indices
 
 la = Laplace(casting_model, likelihood='classification', subset_of_weights='subnetwork',
              hessian_structure='full', subnetwork_indices=subnetwork_indices)
