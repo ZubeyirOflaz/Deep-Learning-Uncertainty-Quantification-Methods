@@ -38,8 +38,7 @@ print(device)
 print(torch.cuda.device_count())
 torch.backends.cudnn.benchmark = True
 
-transformations = transforms.Compose([transforms.Resize(int((image_resolution+1)/2)*3),
-                                      transforms.RandomCrop(image_resolution),
+transformations = transforms.Compose([transforms.Resize(image_resolution),
                                       transforms.Grayscale(),
                                       transforms.ToTensor(),
                                       transforms.Normalize(0.5, 0.5)])
