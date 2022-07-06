@@ -104,6 +104,7 @@ subnetwork_indices = torch.LongTensor(subnetwork_indices.cpu())
 la = Laplace(arrhythmia_model, likelihood='classification', subset_of_weights='subnetwork',
              hessian_structure='full', subnetwork_indices=subnetwork_indices)
 la.fit(train_loader)
+la.optimize_prior_precision(method='CV', val_loader=train_loader)
 
 pred = predict(test_loader, la, laplace=True)
 

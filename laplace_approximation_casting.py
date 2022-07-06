@@ -67,9 +67,18 @@ transformations = transforms.Compose([transforms.Resize(int((image_resolution + 
                                       transforms.ToTensor(),
                                       transforms.Normalize(0.5, 0.5)])
 
-train_set = datasets.ImageFolder(casting_train_path, transform=transformations)
-train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True
-                                           , num_workers=num_workers, pin_memory=True)
+complete_set = datasets.ImageFolder(casting_train_path, transform=transformations)
+all_index = list(range(0, len(complete_set), 1))
+val_index = list(range(0, len(complete_set), 10))
+train_index = [x for x in all_index if x not in val_index]
+
+train_set = torch.utils.data.Subset(complete_set, train_index)
+val_set = torch.utils.data.Subset(complete_set, val_index)
+
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True
+                          , num_workers=num_workers, pin_memory=True)
+
+val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
 test_set = datasets.ImageFolder(casting_test_path, transform=transformations)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
@@ -85,8 +94,8 @@ nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 
 torch.cuda.empty_cache()
-#subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
-#subnetwork_indices = subnetwork_mask.select()
+# subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
+# subnetwork_indices = subnetwork_mask.select()
 
 subnetwork_mask = ModuleNameSubnetMask(casting_model, module_names=['15'])
 subnetwork_mask.select()
@@ -98,7 +107,14 @@ la = Laplace(casting_model, likelihood='classification', subset_of_weights='subn
              hessian_structure='full', subnetwork_indices=subnetwork_indices)
 la.fit(train_loader)
 
-pred = predict(test_loader, la, laplace=True)
+probs_laplace = predict(test_loader, la, laplace=True)
+acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
+# ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
+nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
+print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
+
+la.optimize_prior_precision(method='CV', val_loader=val_loader, pred_type='glm'
+                            , lr='5e-3', n_steps=3000, log_prior_prec_min=-2, log_prior_prec_max=2)
 
 probs_laplace = predict(test_loader, la, laplace=True)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
@@ -106,5 +122,3 @@ acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
 
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
-
-
