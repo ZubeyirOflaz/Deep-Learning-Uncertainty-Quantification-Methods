@@ -18,7 +18,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing
 
 from config import dataset_paths as args
-from laplace import Laplace
+import random
 # Data Import
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +38,10 @@ print(device)
 print(torch.cuda.device_count())
 torch.backends.cudnn.benchmark = True
 
-transformations = transforms.Compose([transforms.Resize(image_resolution),
+torch.random.manual_seed(1)
+random.seed(1)
+transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.4)),
+                                      transforms.RandomCrop(image_resolution),
                                       transforms.Grayscale(),
                                       transforms.ToTensor(),
                                       transforms.Normalize(0.5, 0.5)])
@@ -47,6 +50,9 @@ train_set = datasets.ImageFolder(train_set_path, transform=transformations)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers= num_workers, pin_memory=True)
 # images, labels = next(iter(train_loader))
 # helper.imshow(images[0], normalize=False)
+
+torch.random.manual_seed(1)
+random.seed(1)
 
 test_set = datasets.ImageFolder(test_set_path, transform=transformations)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers= num_workers)

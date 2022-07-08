@@ -12,7 +12,7 @@ images in a given directors and saves it to a new folder
 '''
 
 
-def apply_motion_blur(image_dir, final_dir, kernel_size=10):
+def apply_motion_blur(image_dir, final_dir, kernel_size=15):
     img = cv2.imread(image_dir)
     file_path, file_extension = os.path.splitext(image_dir)
     file_name = Path(image_dir).stem
@@ -36,7 +36,7 @@ def apply_gaussian_blur(image_dir,final_dir, filter_sigma=2):
     cv2.destroyAllWindows();
     cv2.waitKey(1)
 '''
-    blurred_image = cv2.GaussianBlur(img, (5,5), 2)
+    blurred_image = cv2.GaussianBlur(img, (15,15), 2)
     file_destination = final_dir + '\\' + file_name + '_gaussian' + file_extension
     if not cv2.imwrite(file_destination, blurred_image):
         logging.error('Could not write the image')
@@ -61,7 +61,7 @@ def create_blur_database(directory_location,final_dir, mb_gaussian_ratio=0.75):
     print(separation_point)
     print(len(image_files))
 
-casting_train_ok = r'N:\Thesis\Datasets\casting_dataset\casting_data\casting_data\train\ok_front'
-final_dir = r'N:\Thesis\modified\train\ok_front'
+casting_train_ok = r'N:\Thesis\Datasets\casting_dataset\casting_data\casting_data\test\ok_front'
+final_dir = r'N:\Thesis\modified\test\ok_front'
 create_blur_database(casting_train_ok, final_dir)
 
