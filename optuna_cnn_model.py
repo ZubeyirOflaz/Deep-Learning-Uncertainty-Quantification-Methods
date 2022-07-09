@@ -34,13 +34,13 @@ EPOCHS = 25
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
-print(device)
-print(torch.cuda.device_count())
 torch.backends.cudnn.benchmark = True
 
-torch.random.manual_seed(1)
-random.seed(1)
-transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.4)),
+random_seed = 5
+
+torch.random.manual_seed(random_seed)
+random.seed(random_seed)
+transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.45)),
                                       transforms.RandomCrop(image_resolution),
                                       transforms.Grayscale(),
                                       transforms.ToTensor(),
@@ -51,8 +51,8 @@ train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shu
 # images, labels = next(iter(train_loader))
 # helper.imshow(images[0], normalize=False)
 
-torch.random.manual_seed(1)
-random.seed(1)
+torch.random.manual_seed(random_seed)
+random.seed(random_seed)
 
 test_set = datasets.ImageFolder(test_set_path, transform=transformations)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers= num_workers)
