@@ -36,11 +36,11 @@ use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
 torch.backends.cudnn.benchmark = True
 
-random_seed = 5
+random_seed = 15
 
 torch.random.manual_seed(random_seed)
 random.seed(random_seed)
-transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.45)),
+transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.40)),
                                       transforms.RandomCrop(image_resolution),
                                       transforms.Grayscale(),
                                       transforms.ToTensor(),
