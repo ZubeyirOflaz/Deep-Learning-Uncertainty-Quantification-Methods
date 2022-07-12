@@ -11,6 +11,7 @@ import pickle
 from config import dataset_paths, models, casting_args
 import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
+import random
 
 laplace_target = 'arrhythmia'
 
@@ -60,13 +61,16 @@ with open(casting_model_path, "rb") as fin:
 batch_size = 16
 image_resolution = 127
 num_workers = 0
+random_seed = 15
 
-transformations = transforms.Compose([transforms.Resize(int((image_resolution + 1) / 2) * 3),
+transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.40)),
                                       transforms.RandomCrop(image_resolution),
                                       transforms.Grayscale(),
                                       transforms.ToTensor(),
                                       transforms.Normalize(0.5, 0.5)])
 
+torch.random.manual_seed(random_seed)
+random.seed(random_seed)
 complete_set = datasets.ImageFolder(casting_train_path, transform=transformations)
 all_index = list(range(0, len(complete_set), 1))
 val_index = list(range(0, len(complete_set), 10))
@@ -80,6 +84,8 @@ train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True
 
 val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
+torch.random.manual_seed(random_seed)
+random.seed(random_seed)
 test_set = datasets.ImageFolder(casting_test_path, transform=transformations)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
