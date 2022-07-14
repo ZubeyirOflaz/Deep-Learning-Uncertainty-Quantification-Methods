@@ -13,7 +13,6 @@ import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
 import random
 
-laplace_target = 'arrhythmia'
 
 
 def predict(dataloader, model, laplace=False):
@@ -63,6 +62,8 @@ image_resolution = 127
 num_workers = 0
 random_seed = 15
 
+torch.random.manual_seed(random_seed)
+random.seed(random_seed)
 transformations = transforms.Compose([transforms.Resize(int((image_resolution+1) * 1.40)),
                                       transforms.RandomCrop(image_resolution),
                                       transforms.Grayscale(),
@@ -89,7 +90,6 @@ random.seed(random_seed)
 test_set = datasets.ImageFolder(casting_test_path, transform=transformations)
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-check_accuracy(test_loader, casting_model)
 targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
 
 probs_map = predict(test_loader, casting_model, laplace=False)
@@ -120,7 +120,7 @@ nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
 
 la.optimize_prior_precision(method='CV', val_loader=val_loader, pred_type='glm'
-                            , lr='5e-3', n_steps=3000, log_prior_prec_min=-2, log_prior_prec_max=2)
+                            , lr='7e-3', n_steps=3000, log_prior_prec_min=-2, log_prior_prec_max=2)
 
 probs_laplace = predict(test_loader, la, laplace=True)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
