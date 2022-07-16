@@ -1,19 +1,16 @@
-import numpy as np
 import torch
 from laplace import Laplace
-from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import torch.distributions as dists
 from netcal.metrics import ECE
-import pandas
 import numpy
 
 from torch.utils.data import Dataset, TensorDataset
 import pickle
 # import helper
-from config import dataset_paths, models, casting_args
+from config import dataset_paths, models
 import os
-from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
+from laplace.utils import ModuleNameSubnetMask
 
 
 def check_accuracy(loader, model):
