@@ -106,8 +106,7 @@ def optuna_model(trial):
 def objective(trial):
     # Generate the model.
     model = optuna_model(trial).to(device)
-    #print(model)
-    logging.error('model has been compiled')
+    logging.debug('model has been compiled')
 
     # Generate the optimizers.
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
@@ -120,15 +119,12 @@ def objective(trial):
         #logging.error('training has started')
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
-            # Limiting training data for faster epochs.
-            if batch_idx * batch_size >= N_TRAIN_EXAMPLES:
-                break
+
 
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
             optimizer.zero_grad()
             output = model(data)
-            #logging.error('forward pass has been completed')
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()

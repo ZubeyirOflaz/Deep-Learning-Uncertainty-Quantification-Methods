@@ -58,6 +58,7 @@ with open(arrhythmia_train_path, 'rb') as fin:
 with open(arrhythmia_test_path, 'rb') as fin:
     arrhythmia_test = numpy.load(fin, allow_pickle=True)
 
+#Loading and preprocessing datasets, inputing some of the hyperparameters
 batch_size = 16
 num_workers = 0
 
