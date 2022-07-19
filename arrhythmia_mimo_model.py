@@ -29,7 +29,7 @@ with open(arrhythmia_train_path, 'rb') as fin:
 with open(arrhythmia_test_path, 'rb') as fin:
     arrhythmia_test = numpy.load(fin, allow_pickle=True)
 
-ensemble_num = 3
+ensemble_num = 4
 batch_size = 16
 num_workers = 0
 use_cuda = torch.cuda.is_available()
@@ -117,10 +117,11 @@ class BackboneModel(nn.Module):
 class MIMOModel(nn.Module):
     def __init__(self, hidden_dim: int = hidden_dims, ensemble_num: int = 3):
         super(MIMOModel, self).__init__()
+        self.output_dim = 128
         self.input_layer = nn.Linear(hidden_dim, hidden_dim * ensemble_num)
-        self.backbone_model = BackboneModel(hidden_dim, ensemble_num)
+        self.backbone_model = BackboneModel(hidden_dim, ensemble_num, self.output_dim)
         self.ensemble_num = ensemble_num
-        self.output_layer = nn.Linear(128, num_categories * ensemble_num)
+        self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
         ensemble_num, batch_size, *_ = list(input_tensor.size())
@@ -141,8 +142,23 @@ class MIMOModel(nn.Module):
 
 
 class BackboneModel(nn.Module):
-    def __init__(self, hidden_dim: int, ensemble_num: int):
+
+    def __init__(self, hidden_dim: int, ensemble_num: int, output_dim: int):
         super(BackboneModel, self).__init__()
+        layers = []
+        layers.append(nn.Linear(hidden_dim * ensemble_num, 512))
+        layers.append(nn.ReLU())
+        layers.append(nn.Dropout(0.1))
+        layers.append(nn.Linear(512,output_dim))
+        layers.append(nn.ReLU())
+        self.layers = layers
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        module = nn.Sequential(*self.layers).to(device)
+        output = module(x)
+        return output
+
+    '''    super(BackboneModel, self).__init__()
         self.l1 = nn.Linear(hidden_dim * ensemble_num, 512)
         self.l2 = nn.Linear(512, 128)
 
@@ -152,7 +168,7 @@ class BackboneModel(nn.Module):
         x = F.dropout(x, p=0.1)
         x = self.l2(x)
         x = F.relu(x)
-        return x
+        return x'''
 
 from typing import List
 
