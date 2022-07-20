@@ -227,24 +227,24 @@ def objective(trial):
         train_loss = 0.0
         for datum in zip(*train_loader):
             # Training
-            bug_dict['datum'] = datum
+            #bug_dict['datum'] = datum
             model_inputs = torch.stack([data[0] for data in datum]).to(device)
-            model_inputs = model_inputs[:, :, None, :]
-            bug_dict['model_inputs'] = model_inputs
+            #model_inputs = model_inputs[:, :, None, :]
+            #bug_dict['model_inputs'] = model_inputs
             targets = torch.stack([data[1] for data in datum]).to(device)
-            bug_dict['t_targets'] = targets
+            #bug_dict['t_targets'] = targets
             targets = targets.squeeze()
-            bug_dict['t_targets_a'] = targets
+            #bug_dict['t_targets_a'] = targets
             ensemble_num, batch_size = list(targets.size())
             optimizer.zero_grad()
-            outputs = model(model_inputs)
-            bug_dict['t_outputs'] = outputs
+            outputs = model(model_inputs[:, :, None, :])
+            #bug_dict['t_outputs'] = outputs
             '''print('Preds Before')
             print(outputs.size())'''
-            outputs = outputs.reshape(ensemble_num * batch_size, -1)
-            targets = targets.reshape(ensemble_num * batch_size)
+            #outputs = outputs.reshape(ensemble_num * batch_size, -1)
+            #targets = targets.reshape(ensemble_num * batch_size)
             loss = F.nll_loss(
-                outputs, targets
+                outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
             )
             train_loss += loss
             loss.backward()
@@ -265,20 +265,20 @@ def objective(trial):
         with torch.no_grad():
             for data in test_loader:
                 model_inputs = torch.stack([data[0]] * ensemble_num).to(device)
-                model_inputs = model_inputs[:, :, None, :]
+                #model_inputs = model_inputs[:, :, None, :]
                 target = data[1].to(device)
                 target = target.squeeze()
-                bug_dict['data'] = data
-                outputs = model(model_inputs)
-                bug_dict['outputs'] = outputs
+                #bug_dict['data'] = data
+                outputs = model(model_inputs[:, :, None, :])
+                #bug_dict['outputs'] = outputs
                 output = torch.mean(outputs, axis=1)
-                bug_dict['output'] = output
+                #bug_dict['output'] = output
                 # print(output)
                 # print(target)
-                bug_dict['target'] = target
+                #bug_dict['target'] = target
                 test_loss += F.nll_loss(output, target, reduction="sum").item()
                 pred = output.argmax(dim=-1, keepdim=True)
-                target_test = target.view_as(pred)
+                #target_test = target.view_as(pred)
                 correct += pred.eq(target.view_as(pred)).sum().item()
         '''print('Target Tensor')
         print(target)
