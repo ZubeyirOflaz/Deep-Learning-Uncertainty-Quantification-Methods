@@ -101,9 +101,9 @@ device = torch.device("cuda:0" if use_cuda else "cpu")
 ensemble_num = 3
 batch_size = 16
 num_workers = 0
-num_epochs = 20
-hidden_dims = 784
-num_categories = 10
+num_epochs = 150
+hidden_dims = 279
+num_categories = 16
 
 params = {'batch_size': batch_size,
           'num_workers': num_workers}
@@ -139,7 +139,7 @@ acc_map = (probs_map.argmax(-1) == targets).float().mean()
 nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 print(arrhythmia_model)
-transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+'''transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 train_dataset = datasets.MNIST("../data", train=True, download=True, transform=transform)
 test_dataset = datasets.MNIST("../data", train=False, transform=transform)
 print('stage3')
@@ -149,7 +149,7 @@ train_loader = [
     for _ in range(ensemble_num)
 ]
 test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers)
-
+'''
 
 def optuna_model(trial):
     # Main MIMO model layer
@@ -188,7 +188,7 @@ def optuna_model(trial):
             in_features = hidden_dim * ensemble_num
             num_layers = trial.suggest_int('num_layers', 1, 5)
             for i in range(num_layers):
-                out_dim = trial.suggest_int('n_units_l{}'.format(i), 32, 1024)
+                out_dim = trial.suggest_int('n_units_l{}'.format(i), 8, 1024)
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
@@ -216,7 +216,7 @@ def objective(trial):
 
     model = optuna_model(trial=trial).to(device)
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", 1e-5, 1, log=True)
+    lr = trial.suggest_float("lr", 1e-9, 1e-3, log=True)
     optimizer = getattr(optim, 'Adadelta')(model.parameters(), lr=lr)
     gamma = trial.suggest_float('gamma', 0.0, 1.0)
     scheduler = StepLR(optimizer, step_size=len(train_loader[0]), gamma=gamma)
@@ -297,7 +297,8 @@ def objective(trial):
 
 
 # study = optuna.create_study(direction="maximize")
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=20, multivariate=True),
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=20, multivariate=True,
+                                                               group=True, constant_liar= True),
                             direction='maximize')
 study.optimize(objective, n_trials=200)
 
