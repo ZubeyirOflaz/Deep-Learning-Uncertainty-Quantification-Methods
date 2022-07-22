@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset, random_split
 import pickle
 #import helper
 import logging
@@ -13,9 +12,6 @@ import os
 
 import optuna
 from optuna.trial import TrialState
-from sklearn.datasets import make_classification
-from sklearn.linear_model import LogisticRegression
-from sklearn import preprocessing
 
 from config import dataset_paths as args
 import random
