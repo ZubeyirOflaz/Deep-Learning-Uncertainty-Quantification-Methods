@@ -171,7 +171,7 @@ def optuna_model(trial):
 
             # usual model forward
             output = self.backbone_model(input_tensor)  # (batch_size, ensemble_num, 128)
-            output = self.output_layer(output)  # (batch_size, ensemble_num, 10 * ensemble_num)
+            output = self.output_layer(output)  # (batch_size, ensemble_num, 16 * ensemble_num)
             output = output.reshape(
                 batch_size, ensemble_num, -1, ensemble_num
             )  # (batch_size, ensemble_num, 16, ensemble_num)
