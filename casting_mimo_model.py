@@ -10,7 +10,7 @@ import pickle
 import logging
 import time
 import os
-
+import torcheck
 import optuna
 from optuna.trial import TrialState
 
@@ -23,7 +23,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 train_set_path = ROOT_DIR + args['casting_train']
 test_set_path = ROOT_DIR + args['casting_test']
 
-batch_size = 8
+batch_size = 16
 image_resolution = 127
 num_workers = 0
 ensemble_num = 3
@@ -69,43 +69,43 @@ def mimo_cnn_model(trial):
             self.output_dim = trial.suggest_int('output_dim', 32, 256)
             self.num_channels = trial.suggest_int('num_channels', 4, 24) * ensemble_num
             self.final_img_resolution = 12 # * trial.suggest_int('img_multiplier', 1, 3)
-            self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution)
+            self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution) * ensemble_num
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
             self.linear_module = LinearModule(self.input_dim, self.output_dim)
-            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
+            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num * ensemble_num)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
             size_list = list(input_tensor.size())
             ensemble_num, batch_size, *_ = size_list
-            conv_result = self.conv_module(input_tensor.reshape(size_list[1:-1] + [size_list[-1] * size_list[0]]))
+            conv_result = self.conv_module(input_tensor.transpose(0,2).squeeze(0))
             '''print(self.input_dim)
             print(conv_result.size())
             print(conv_result.reshape(batch_size, ensemble_num, -1).size())'''
-            output = self.linear_module(conv_result.flatten()) #.reshape(batch_size, ensemble_num, -1))
-            print('tensor shapes')
-            print(output.size())
+            output = self.linear_module(conv_result.reshape(batch_size, -1)) #.reshape(batch_size, ensemble_num, -1))
+            #print('tensor shapes')
+            #print(output.size())
             output = self.output_layer(output)
-            print(output.size())
+            #print(output.size())
             output = output.reshape(
                 batch_size, ensemble_num, -1, ensemble_num
             )  # (batch_size, ensemble_num, num_categories, ensemble_num)
-            print(output.size())
+            #print(output.size())
             output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2,
                                                                                 1)  # (batch_size, ensemble_num, num_categories)
-            print(output.size())
+            #print(output.size())
             output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
-            print(output.size())
+            #print(output.size())
             return output
 
     class ConvModule(nn.Module):
         def __init__(self, num_channels: int, final_img_resolution: int, ensemble_num: int):
             super(ConvModule, self).__init__()
             layers = []
-            num_layers = trial.suggest_int('num_cnn_layers', 1, 3)
-            input_channels = 1
+            num_layers = trial.suggest_int('num_cnn_layers', 2, 3)
+            input_channels = ensemble_num
             for i in range(num_layers):
                 num_filters = trial.suggest_categorical(f'num_filters_{i}', [16, 32, 48, 64])
-                kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 4)
+                kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 5)
                 layers.append(nn.Conv2d(input_channels, num_filters, kernel_size))
                 layers.append(nn.MaxPool2d(4, 2))
                 input_channels = num_filters
@@ -155,6 +155,10 @@ def objective(trial):
     scheduler = StepLR(optimizer, step_size=len(train_loader[0]), gamma=gamma)
     num_epochs = 20
 
+    torcheck.register(optimizer)
+    torcheck.add_module_changing_check(model)
+    torcheck.add_module_nan_check(model)
+    torcheck.add_module_inf_check(model)
     # Training and eval loop
     for epoch in range(num_epochs):
         model.train()
@@ -179,8 +183,8 @@ def objective(trial):
             train_loss += loss
             loss.backward()
             optimizer.step()
-            scheduler.step()
-        print(f'{epoch}: {loss}')
+        scheduler.step()
+        print(f'{epoch}: {train_loss}')
         '''print('Target Tensor')
         print(targets.reshape(ensemble_num * batch_size))
         print(targets.reshape(ensemble_num * batch_size).size())
