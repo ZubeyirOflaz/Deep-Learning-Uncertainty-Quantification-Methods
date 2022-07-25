@@ -8,8 +8,21 @@ from torch import nn, optim
 from torch.autograd import Variable
 
 
-def test_network(net, trainloader):
+def weighted_classes(images, nclasses):
+    count = [0] * nclasses
+    for item in images:
+        count[item[1]] += 1
+    weight_per_class = [0.] * nclasses
+    N = float(sum(count))
+    for i in range(nclasses):
+        weight_per_class[i] = N / float(count[i])
+    weight = [0] * len(images)
+    for idx, val in enumerate(images):
+        weight[idx] = weight_per_class[val[1]]
+    return weight
 
+
+def test_network(net, trainloader):
     criterion = nn.MSELoss()
     optimizer = optim.Adam(net.parameters(), lr=0.001)
 
@@ -70,12 +83,13 @@ def view_recon(img, recon):
         ax.axis('off')
         ax.set_adjustable('box-forced')
 
+
 def view_classify(img, ps, version="MNIST"):
     ''' Function for viewing an image and it's predicted classes.
     '''
     ps = ps.data.numpy().squeeze()
 
-    fig, (ax1, ax2) = plt.subplots(figsize=(6,9), ncols=2)
+    fig, (ax1, ax2) = plt.subplots(figsize=(6, 9), ncols=2)
     ax1.imshow(img.resize_(1, 28, 28).numpy().squeeze())
     ax1.axis('off')
     ax2.barh(np.arange(10), ps)
@@ -85,15 +99,15 @@ def view_classify(img, ps, version="MNIST"):
         ax2.set_yticklabels(np.arange(10))
     elif version == "Fashion":
         ax2.set_yticklabels(['T-shirt/top',
-                            'Trouser',
-                            'Pullover',
-                            'Dress',
-                            'Coat',
-                            'Sandal',
-                            'Shirt',
-                            'Sneaker',
-                            'Bag',
-                            'Ankle Boot'], size='small');
+                             'Trouser',
+                             'Pullover',
+                             'Dress',
+                             'Coat',
+                             'Sandal',
+                             'Shirt',
+                             'Sneaker',
+                             'Bag',
+                             'Ankle Boot'], size='small');
     ax2.set_title('Class Probability')
     ax2.set_xlim(0, 1.1)
 
