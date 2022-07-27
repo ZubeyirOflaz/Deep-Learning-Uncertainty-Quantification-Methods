@@ -24,7 +24,7 @@ test_set_path = ROOT_DIR + args['casting_test']
 batch_size = 8
 image_resolution = 127
 num_workers = 0
-ensemble_num = 3
+ensemble_num = 4
 num_categories = 2
 
 LOG_INTERVAL = 10
@@ -108,14 +108,14 @@ def mimo_cnn_model(trial):
             for i in range(num_layers):
                 num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64])
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 5)
-                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, kernel_size)))
+                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, kernel_size * ensemble_num)))
                 if i < 1:
                     pool_stride = 2
                 else:
                     pool_stride = 1
-                layers.append(nn.MaxPool2d((4, 4), pool_stride))
+                layers.append(nn.MaxPool2d((4, 4 * ensemble_num), pool_stride))
                 input_channels = num_filters
-            layers.append(nn.Conv2d(input_channels, num_channels, (3, 3)))
+            layers.append(nn.Conv2d(input_channels, num_channels, (3, 3 * ensemble_num)))
             layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             self.layers = layers
 
@@ -162,7 +162,7 @@ def objective(trial):
     gamma = trial.suggest_float('gamma', 0.5, 1)
     scheduler = StepLR(optimizer, step_size=(len(train_loader[0])), gamma=gamma)
 
-    num_epochs = 10 + (int(trial.number / 4))
+    num_epochs = 25
     '''torcheck.register(optimizer)
     torcheck.add_module_changing_check(model)
     torcheck.add_module_nan_check(model)
