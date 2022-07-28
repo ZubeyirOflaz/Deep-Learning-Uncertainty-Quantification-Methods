@@ -68,7 +68,7 @@ def mimo_cnn_model(trial):
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
             super(MimoCnnModel, self).__init__()
-            self.output_dim = trial.suggest_int('output_dim', 32, 512)
+            self.output_dim = trial.suggest_int('output_dim', 32, 1024)
             self.num_channels = trial.suggest_int('num_channels', 8, 32) * ensemble_num
             self.final_img_resolution = 12 * trial.suggest_int('img_multiplier', 1, 2)
             self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution)
@@ -103,10 +103,10 @@ def mimo_cnn_model(trial):
         def __init__(self, num_channels: int, final_img_resolution: int, ensemble_num: int):
             super(ConvModule, self).__init__()
             layers = []
-            num_layers = trial.suggest_int('num_cnn_layers', 1, 4)
+            num_layers = trial.suggest_int('num_cnn_layers', 1, 3)
             input_channels = 1
             for i in range(num_layers):
-                num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64])
+                num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64, 128, 256])
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 5)
                 layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, kernel_size * ensemble_num)))
                 if i < 1:
