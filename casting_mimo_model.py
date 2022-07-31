@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import StepLR
 import pickle
-from helper import weighted_classes
+from helper import weighted_classes, create_study_analysis
 import os
 import torcheck
 import optuna
@@ -241,7 +241,7 @@ study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True
 
 # study = optuna.create_study(sampler=optuna.samplers.RandomSampler(),direction= 'maximize')
 
-study.optimize(objective, n_trials=50)
+study.optimize(objective, n_trials=100)
 
 pruned_trials = study.geteet_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -263,3 +263,5 @@ for key, value in trial.params.items():
 best_model = mimo_cnn_model(trial)
 best_model.load_state_dict(torch.load("model_repo\\{}.pyt".format(study.best_trial.number)))
 torch.save(best_model.state_dict(), f'model_repo\\best_models\\casting_{study.best_trial.value}.pyt')
+
+trial_dataframe = create_study_analysis(study.get_trials(deepcopy=True))
