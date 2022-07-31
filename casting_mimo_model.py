@@ -77,9 +77,8 @@ def mimo_cnn_model(trial):
             self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
-            size_list = list(input_tensor.size())
-            ensemble_num, batch_size, *_ = size_list
-            conv_result = self.conv_module(input_tensor.transpose(0, 1).reshape(batch_size, 1, size_list[-1], -1))
+            batch_size = input_tensor.size()[0]
+            conv_result = self.conv_module(input_tensor)
             # print(self.input_dim)
             # print(conv_result.size())
             # print(conv_result.reshape(batch_size, ensemble_num, -1).size())
@@ -92,8 +91,7 @@ def mimo_cnn_model(trial):
                 batch_size, ensemble_num, -1, ensemble_num
             )  # (batch_size, ensemble_num, num_categories, ensemble_num)
             # print(output.size())
-            output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2,
-                                                                                1)  # (batch_size, ensemble_num, num_categories)
+            output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
             output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
@@ -106,7 +104,7 @@ def mimo_cnn_model(trial):
             num_layers = trial.suggest_int('num_cnn_layers', 1, 3)
             input_channels = 1
             for i in range(num_layers):
-                num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64, 128, 256])
+                num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64, 128])
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 5)
                 layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, kernel_size * ensemble_num)))
                 if i < 1:
@@ -175,7 +173,7 @@ def objective(trial):
         for datum in zip(*train_loader):
             # Training
             # bug_dict['datum'] = datum
-            model_inputs = torch.stack([data[0] for data in datum]).to(device)
+            model_inputs = torch.cat([data[0] for data in datum], dim=3).to(device)
             # model_inputs = model_inputs[:, :, None, :]
             # bug_dict['model_inputs'] = model_inputs
             targets = torch.stack([data[1] for data in datum]).to(device)
@@ -208,7 +206,7 @@ def objective(trial):
         correct = 0
         with torch.no_grad():
             for data in test_loader:
-                model_inputs = torch.stack([data[0]] * ensemble_num).to(device)
+                model_inputs = torch.cat([data[0]] * ensemble_num, dim=3).to(device)
                 # model_inputs = model_inputs[:, :, None, :]
                 target = data[1].to(device)
                 # bug_dict['data'] = data
@@ -239,14 +237,13 @@ def objective(trial):
     return acc
 
 
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=20, multivariate=True,
-                                                               group=True), direction='maximize')
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True, group=True), direction='maximize')
 
 # study = optuna.create_study(sampler=optuna.samplers.RandomSampler(),direction= 'maximize')
 
-study.optimize(objective, n_trials=200)
+study.optimize(objective, n_trials=50)
 
-pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+pruned_trials = study.geteet_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
 
 print("Study statistics: ")

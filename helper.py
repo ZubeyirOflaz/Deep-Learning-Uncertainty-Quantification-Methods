@@ -6,6 +6,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torch import nn, optim
 from torch.autograd import Variable
+import pandas as pd
+
+def create_study_analysis (optuna_study):
+    parameters = [i.params for i in optuna_study]
+    accuracy = [y.value for y in optuna_study]
+    df = pd.DataFrame(parameters)
+    df.insert(0, 'accuracy', accuracy)
+    df.sort_values('accuracy', inplace=True)
+    return df
 
 
 def weighted_classes(images, nclasses):
