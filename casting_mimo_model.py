@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import StepLR
 import pickle
-from helper import weighted_classes, create_study_analysis
+from utils.helper import weighted_classes, create_study_analysis
 import os
 import torcheck
 import optuna
@@ -74,7 +74,7 @@ def mimo_cnn_model(trial):
             self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution)
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
             self.linear_module = LinearModule(self.input_dim, self.output_dim)
-            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
+            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num * ensemble_num)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
             batch_size = input_tensor.size()[0]
@@ -82,7 +82,7 @@ def mimo_cnn_model(trial):
             # print(self.input_dim)
             # print(conv_result.size())
             # print(conv_result.reshape(batch_size, ensemble_num, -1).size())
-            output = self.linear_module(conv_result.reshape(batch_size, ensemble_num, -1))
+            output = self.linear_module(conv_result.reshape(batch_size, -1))
             # print('tensor shapes')
             # print(output.size())
             output = self.output_layer(output)
@@ -265,3 +265,4 @@ best_model.load_state_dict(torch.load("model_repo\\{}.pyt".format(study.best_tri
 torch.save(best_model.state_dict(), f'model_repo\\best_models\\casting_{study.best_trial.value}.pyt')
 
 trial_dataframe = create_study_analysis(study.get_trials(deepcopy=True))
+trial_dataframe.to_csv(f'model_repo\\casting_trial_{study.study_name}.csv')

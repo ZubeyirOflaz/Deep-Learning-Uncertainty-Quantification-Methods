@@ -7,7 +7,7 @@ import numpy
 
 from torch.utils.data import Dataset, TensorDataset
 import pickle
-# import helper
+# import utils.helper
 from config import dataset_paths, models
 import os
 from laplace.utils import ModuleNameSubnetMask

@@ -19,13 +19,12 @@ class MimoTrainValidate:
         self.train_loader = trainloader
         self.test_loader = testloader
         self.ensemble_num = len(trainloader)
-
+        print('init complete')
     def model_train(self, num_epochs=50):
         train_loader = self.train_loader
         device = self.device
-        model = self.model
+        model = self.model.to(device)
         lr = self.dict['lr'].values[0]
-        print(lr)
         gamma = self.dict['gamma'].values[0]
         optimizer = getattr(optim, 'Adam')(model.parameters(), lr=lr)
         scheduler = StepLR(optimizer, step_size=(len(train_loader[0])), gamma=gamma)
@@ -54,13 +53,15 @@ class MimoTrainValidate:
                 scheduler.step()
             print(f'{epoch}: {train_loss}')
             self.model_validate()
-        return model
+        self.model = model
+        print('model has been updated')
+        return model, self
 
     def model_validate(self, get_predictions=False):
         test_loader = self.test_loader
-        model = self.model
         device = self.device
         ensemble_num = self.ensemble_num
+        model = self.model.to(device)
         model.eval()
         test_loss = 0
         test_size = 0

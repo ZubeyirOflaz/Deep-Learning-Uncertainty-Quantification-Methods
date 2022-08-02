@@ -7,7 +7,7 @@ from netcal.metrics import ECE
 
 from torch.utils.data import Dataset, random_split
 import pickle
-# import helper
+# import utils.helper
 from config import dataset_paths, models, casting_args
 import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask

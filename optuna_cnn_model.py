@@ -5,7 +5,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import pickle
-#import helper
+#import utils.helper
 import logging
 import time
 import os
