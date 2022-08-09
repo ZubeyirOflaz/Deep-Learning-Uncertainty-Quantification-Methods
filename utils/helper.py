@@ -85,7 +85,7 @@ class MimoTrainValidate:
                 test_loss += F.nll_loss(output, target, reduction="sum").item()
                 pred = output.argmax(dim=-1, keepdim=True)
                 if get_predictions is True:
-                    predictions.append(pred.cpu().tolist())
+                    predictions.append(output.cpu().tolist())
                     targets.append(target.cpu().tolist())
                 # target_test = target.view_as(pred)
                 correct += pred.eq(target.view_as(pred)).sum().item()
@@ -120,6 +120,36 @@ def weighted_classes(images, nclasses):
     for idx, val in enumerate(images):
         weight[idx] = weight_per_class[val[1]]
     return weight
+
+
+def check_accuracy(loader, model):
+    num_correct = 0
+    num_samples = 0
+    model.eval()
+
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device='cuda')
+            y = y.to(device='cuda')
+
+            scores = model(x)
+            _, predictions = scores.max(1)
+            num_correct += (predictions == y).sum()
+            num_samples += predictions.size(0)
+
+        print(f'Got {num_correct} / {num_samples} with accuracy {float(num_correct) / float(num_samples) * 100:.2f}')
+
+
+def predict(dataloader, model, laplace=False):
+    py = []
+
+    for x, _ in dataloader:
+        if laplace:
+            py.append(model(x.cuda()))
+        else:
+            py.append(torch.softmax(model(x.cuda()), dim=-1))
+
+    return torch.cat(py).cpu()
 
 
 def test_network(net, trainloader):
