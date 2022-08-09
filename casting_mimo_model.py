@@ -103,9 +103,9 @@ def mimo_cnn_model(trial):
             num_layers = trial.suggest_int('num_cnn_layers', 4, 4)
             input_channels = 1
             for i in range(num_layers):
-                num_filters = trial.suggest_categorical(f'num_filters_{i}', [8, 16, 32, 48, 64, 128])
+                num_filters = trial.suggest_categorical(f'num_filters_{i}', [4, 8, 16])
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 4)
-                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, kernel_size * ensemble_num)))
+                layers.append(nn.Conv2d(input_channels, num_filters, ((kernel_size * (i+1)), kernel_size * ensemble_num)))
                 if i < 1:
                     pool_stride = 2
                 else:
@@ -113,7 +113,7 @@ def mimo_cnn_model(trial):
                 layers.append(nn.ReLU())
                 layers.append(nn.MaxPool2d((2, 2 * ensemble_num), pool_stride))
                 input_channels = num_filters
-            layers.append(nn.Conv2d(input_channels, num_channels, (3, 3 * ensemble_num)))
+            layers.append(nn.Conv2d(input_channels, input_channels * 2, (3, 3 * ensemble_num)))
             layers.append(nn.ReLU())
             layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             self.layers = layers
@@ -242,7 +242,7 @@ study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True
                             direction='maximize', study_name=study_name)
 
 
-study.optimize(objective, n_trials=50)
+study.optimize(objective, n_trials=200)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
