@@ -2,7 +2,9 @@ import torch
 import numpy as np
 import pandas as pd
 from scipy.io import arff
-
+import torch.nn as nn
+import pandas
+import torch.nn.functional as F
 
 class ARFFDataset(torch.utils.data.Dataset):
 

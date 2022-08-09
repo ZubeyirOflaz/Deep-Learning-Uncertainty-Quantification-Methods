@@ -7,7 +7,9 @@ dataset_paths = {
     'arrhythmia_train': '\\Datasets\\arrhythmia\\arrhythmia_train.npy',
     'arrhythmia_test': '\\Datasets\\arrhythmia\\arrhythmia_test.npy',
     'casting_train': '\\Datasets\\casting_modified\\train\\',
-    'casting_test': '\\Datasets\\casting_modified\\test\\'
+    'casting_test': '\\Datasets\\casting_modified\\test\\',
+    'ford_a_train': '\\Datasets\\ford_a\\FordA_TRAIN.arff',
+    'ford_a_test': '\\Datasets\\ford_a\\FordA_TEST.arff'
 }
 models = {
     'base_models': {

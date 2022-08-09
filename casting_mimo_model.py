@@ -22,7 +22,7 @@ train_set_path = ROOT_DIR + args['casting_train']
 test_set_path = ROOT_DIR + args['casting_test']
 
 batch_size = 8
-image_resolution = 127
+image_resolution = 63
 num_workers = 0
 ensemble_num = 3
 num_categories = 2

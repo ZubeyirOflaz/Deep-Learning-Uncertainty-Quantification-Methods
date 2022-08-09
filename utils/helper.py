@@ -85,7 +85,7 @@ class MimoTrainValidate:
                 test_loss += F.nll_loss(output, target, reduction="sum").item()
                 pred = output.argmax(dim=-1, keepdim=True)
                 if get_predictions is True:
-                    predictions.append(output.cpu().tolist())
+                    predictions.append(outputs.cpu().tolist())
                     targets.append(target.cpu().tolist())
                 # target_test = target.view_as(pred)
                 correct += pred.eq(target.view_as(pred)).sum().item()
