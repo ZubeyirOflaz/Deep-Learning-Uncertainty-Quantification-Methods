@@ -58,17 +58,14 @@ test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, sampler
 N_TRAIN_EXAMPLES = len(train_set)
 N_TEST_EXAMPLES = len(test_set)
 
-model2 = None
 
 
 def mimo_cnn_model(trial):
-    global model2
-
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
             super(MimoCnnModel, self).__init__()
             self.output_dim = trial.suggest_int('output_dim', 32, 1024)
-            self.num_channels = trial.suggest_int('num_channels', 8, 32) * ensemble_num
+            self.num_channels = trial.suggest_int('num_channels', 64, 128)
             self.final_img_resolution = 8
             self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution) * ensemble_num
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
@@ -106,14 +103,14 @@ def mimo_cnn_model(trial):
                 num_filters = trial.suggest_categorical(f'num_filters_{i}', [4, 8, 16])
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 4)
                 layers.append(nn.Conv2d(input_channels, num_filters, ((kernel_size * (i+1)), kernel_size * ensemble_num)))
-                if i < 1:
+                if i < 0:
                     pool_stride = 2
                 else:
                     pool_stride = 1
                 layers.append(nn.ReLU())
                 layers.append(nn.MaxPool2d((2, 2 * ensemble_num), pool_stride))
                 input_channels = num_filters
-            layers.append(nn.Conv2d(input_channels, input_channels * 2, (3, 3 * ensemble_num)))
+            layers.append(nn.Conv2d(input_channels, num_channels, (3, 3 * ensemble_num)))
             layers.append(nn.ReLU())
             layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             self.layers = layers
@@ -147,14 +144,16 @@ def mimo_cnn_model(trial):
             return output
 
     mimo_optuna = MimoCnnModel(ensemble_num=ensemble_num, num_categories=num_categories)
-    model2 = mimo_optuna
     return mimo_optuna
 
 
 def objective(trial):
     # Model and main parameter initialization
-
-    model = mimo_cnn_model(trial=trial).to(device)
+    try:
+        model = mimo_cnn_model(trial=trial).to(device)
+    except:
+        print('Infeasible model, trial will be skipped')
+        raise optuna.exceptions.TrialPruned()
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
     lr = trial.suggest_float("lr", 1e-4, 5e-2, log=True)
     optimizer = getattr(optim, 'Adam')(model.parameters(), lr=lr)
