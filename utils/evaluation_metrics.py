@@ -36,17 +36,21 @@ def calculate_metric_base(model : torch.nn.Module, dataloader : DataLoader):
     device = torch.device("cuda:0" if use_cuda else "cpu")
     for x, _ in dataloader:
         pred = model(x.to(device))
-        predictions.extend(pred)
+        predictions.append(pred)
+    predictions = torch.cat(predictions)
     standard_dev = np.std(predictions)
     mean = np.mean(predictions)
     prediction = np.round(predictions)
 
 def calculate_metric_mimo(model : torch.nn.Module, dataloader : DataLoader, ensemble_num):
     predictions = []
+    outputs = []
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
     for data in dataloader:
         model_inputs = torch.cat([data[0]] * ensemble_num, dim=3).to(device)
         pred = model(model_inputs)
-        predictions.extend(pred)
-
+        output = torch.mean(pred, axis=1)
+        predictions.append(pred)
+        outputs.append(output)
+    predictions = torch.cat(predictions)
