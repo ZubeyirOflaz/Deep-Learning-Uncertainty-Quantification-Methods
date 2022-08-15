@@ -27,7 +27,7 @@ num_workers = 0
 ensemble_num = 3
 num_categories = 2
 study_name = str(random.randint(100000, 999999))
-LOG_INTERVAL = 10
+
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
@@ -270,3 +270,4 @@ with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
     pickle.dump(study, fout)
 
 study_1 = '752844'
+study_2 = '243222'

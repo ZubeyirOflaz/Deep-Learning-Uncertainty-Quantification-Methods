@@ -25,7 +25,6 @@ batch_size = 128
 image_resolution = 127
 num_workers = 0
 
-LOG_INTERVAL = 10
 EPOCHS = 25
 
 use_cuda = torch.cuda.is_available()
