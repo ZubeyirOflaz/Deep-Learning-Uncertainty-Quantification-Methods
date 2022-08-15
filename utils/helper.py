@@ -7,6 +7,8 @@ import pandas as pd
 import optuna
 from torch.optim.lr_scheduler import StepLR
 import torch.nn.functional as F
+from torchviz import make_dot, make_dot_from_trace
+import pickle
 
 
 class MimoTrainValidate:
@@ -122,31 +124,15 @@ def weighted_classes(images, nclasses):
     return weight
 
 
+def plot_network(data_loader, model = None, model_path = None, from_path = True):
+    if from_path:
+        with open(model_path, 'rb') as fin:
+            model = pickle.load(fin)
+    x, y = next(iter(data_loader))
+    model_graph = make_dot(y, params=dict(list(model.named_parameters())))
 
 
 
-
-def test_network(net, trainloader):
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.001)
-
-    dataiter = iter(trainloader)
-    images, labels = dataiter.next()
-
-    # Create Variables for the inputs and targets
-    inputs = Variable(images)
-    targets = Variable(images)
-
-    # Clear the gradients from all Variables
-    optimizer.zero_grad()
-
-    # Forward pass, then backward pass, then update weights
-    output = net.forward(inputs)
-    loss = criterion(output, targets)
-    loss.backward()
-    optimizer.step()
-
-    return True
 
 
 def imshow(image, ax=None, title=None, normalize=True):

@@ -26,7 +26,7 @@ image_resolution = 63
 num_workers = 0
 ensemble_num = 3
 num_categories = 2
-study_name = str(random.randint(100000,999999))
+study_name = str(random.randint(100000, 999999))
 LOG_INTERVAL = 10
 
 use_cuda = torch.cuda.is_available()
@@ -59,14 +59,13 @@ N_TRAIN_EXAMPLES = len(train_set)
 N_TEST_EXAMPLES = len(test_set)
 
 
-
 def mimo_cnn_model(trial):
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
             super(MimoCnnModel, self).__init__()
             self.output_dim = trial.suggest_int('output_dim', 32, 1024)
             self.num_channels = trial.suggest_int('num_channels', 64, 128)
-            self.final_img_resolution = 8
+            self.final_img_resolution = 12
             self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution) * ensemble_num
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
             self.linear_module = LinearModule(self.input_dim, self.output_dim)
@@ -75,9 +74,9 @@ def mimo_cnn_model(trial):
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
             batch_size = input_tensor.size()[0]
             conv_result = self.conv_module(input_tensor)
-            #print(self.input_dim)
+            # print(self.input_dim)
             # print(conv_result.size())
-            #print(conv_result.reshape(batch_size, -1).size())
+            # print(conv_result.reshape(batch_size, -1).size())
             output = self.linear_module(conv_result.reshape(batch_size, -1))
             # print('tensor shapes')
             # print(output.size())
@@ -97,13 +96,15 @@ def mimo_cnn_model(trial):
         def __init__(self, num_channels: int, final_img_resolution: int, ensemble_num: int):
             super(ConvModule, self).__init__()
             layers = []
-            num_layers = trial.suggest_int('num_cnn_layers', 4, 4)
+            num_layers = trial.suggest_int('num_cnn_layers', 2, 2)
             input_channels = 1
             for i in range(num_layers):
-                num_filters = trial.suggest_categorical(f'num_filters_{i}', [4, 8, 16])
+                filter_base = [4, 8, 16]
+                filter_selections = [i * (num_layers + 1) for i in filter_base]
+                num_filters = trial.suggest_categorical(f'num_filters_{i}', filter_selections)
                 kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 4)
-                layers.append(nn.Conv2d(input_channels, num_filters, ((kernel_size * (i+1)), kernel_size * ensemble_num)))
-                if i < 0:
+                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, (kernel_size * ensemble_num))))
+                if i < 2:
                     pool_stride = 2
                 else:
                     pool_stride = 1
@@ -114,10 +115,10 @@ def mimo_cnn_model(trial):
             layers.append(nn.ReLU())
             layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             self.layers = layers
+            self.module = nn.Sequential(*self.layers).to(device)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
-            module = nn.Sequential(*self.layers).to(device)
-            output = module(input_tensor)
+            output = self.module(input_tensor)
             return output
 
     class LinearModule(nn.Module):
@@ -125,9 +126,9 @@ def mimo_cnn_model(trial):
             super(LinearModule, self).__init__()
             layers = []
             in_features = input_dimension
-            num_layers = 1  # trial.suggest_int('num_layers', 1, 3)
+            num_layers = 2  # trial.suggest_int('num_layers', 1, 3)
             for i in range(num_layers):
-                out_dim = trial.suggest_int('n_units_l{}'.format(i), 8, 512)
+                out_dim = trial.suggest_int('n_units_l{}'.format(i), 128, 2048)
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
@@ -137,10 +138,10 @@ def mimo_cnn_model(trial):
             layers.append(nn.Linear(in_features, output_dimension))
             layers.append(nn.ReLU())
             self.layers = layers
+            self.module = nn.Sequential(*self.layers).to(device)
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            module = nn.Sequential(*self.layers).to(device)
-            output = module(x)
+            output = self.module(x)
             return output
 
     mimo_optuna = MimoCnnModel(ensemble_num=ensemble_num, num_categories=num_categories)
@@ -151,8 +152,9 @@ def objective(trial):
     # Model and main parameter initialization
     try:
         model = mimo_cnn_model(trial=trial).to(device)
-    except:
+    except Exception as e:
         print('Infeasible model, trial will be skipped')
+        print(e)
         raise optuna.exceptions.TrialPruned()
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
     lr = trial.suggest_float("lr", 1e-4, 5e-2, log=True)
@@ -227,7 +229,7 @@ def objective(trial):
         acc = 100.0 * correct / test_size
         print(f'epoch {epoch}: {acc}')
         trial.report(acc, epoch)
-        if trial.should_prune(): # or (epoch > 4 and acc < 52):
+        if trial.should_prune():  # or (epoch > 4 and acc < 52):
             raise optuna.exceptions.TrialPruned()
     torch.save(model.state_dict(), f"model_repo\\{trial.number}_{study_name}.pyt")
 
@@ -237,11 +239,10 @@ def objective(trial):
     return acc
 
 
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True, group=True),
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True, group=True, n_startup_trials=20),
                             direction='maximize', study_name=study_name)
 
-
-study.optimize(objective, n_trials=200)
+study.optimize(objective, n_trials=50)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -267,3 +268,5 @@ torch.save(best_model.state_dict(), f'model_repo\\best_models\\casting_{study.be
 trial_dataframe = create_study_analysis(study.get_trials(deepcopy=True))
 with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
     pickle.dump(study, fout)
+
+study_1 = '752844'

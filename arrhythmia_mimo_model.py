@@ -1,23 +1,17 @@
-import configparser
-
 import optuna
 from optuna.trial import TrialState
 import pandas as pd
 from config import dataset_paths, models
-import os
 import pickle
 import numpy
 from torch.utils.data import Dataset, random_split, DataLoader, TensorDataset
-from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
-from typing import NamedTuple
 import torch.distributions as dists
 from sklearn import preprocessing
-from torchvision import transforms, datasets
 
 # Loading and preprocessing datasets, inputting some of the hyperparameters
 
@@ -198,10 +192,10 @@ def optuna_model(trial):
             layers.append(nn.Linear(in_features, output_dim))
             layers.append(nn.ReLU())
             self.layers = layers
+            self.module = nn.Sequential(*self.layers).to(device)
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            module = nn.Sequential(*self.layers).to(device)
-            output = module(x)
+            output = self.module(x)
             return output
 
     mimo_optuna = MIMOModel(hidden_dim=hidden_dims, ensemble_num=ensemble_num)

@@ -38,9 +38,10 @@ def calculate_metric_base(model : torch.nn.Module, dataloader : DataLoader):
         pred = model(x.to(device))
         predictions.append(pred)
     predictions = torch.cat(predictions)
-    standard_dev = np.std(predictions)
+    '''standard_dev = np.std(predictions)
     mean = np.mean(predictions)
-    prediction = np.round(predictions)
+    prediction = np.round(predictions)'''
+    return predictions
 
 def calculate_metric_mimo(model : torch.nn.Module, dataloader : DataLoader, ensemble_num):
     predictions = []
@@ -54,3 +55,4 @@ def calculate_metric_mimo(model : torch.nn.Module, dataloader : DataLoader, ense
         predictions.append(pred)
         outputs.append(output)
     predictions = torch.cat(predictions)
+    return predictions
