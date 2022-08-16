@@ -28,7 +28,7 @@ test_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_w
 
 
 def ford_a_train():
-    model = FordAConvModel()
+    model = FordAConvModel().to(device)
     lr = 5e-4
     gamma = 0.9
     optimizer = getattr(optim, 'Adadelta')(model.parameters(), lr=lr)
@@ -38,16 +38,19 @@ def ford_a_train():
         t0 = time.time()
         # logging.error('training has started')
         model.train()
+        t_loss = 0
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
 
             optimizer.zero_grad()
             output = model(data)
-            loss = F.nll_loss(output, target)
+            loss = F.binary_cross_entropy(output, target.flatten())
+            t_loss += loss
             loss.backward()
             optimizer.step()
             scheduler.step()
         print(f'Seconds between epoch:{time.time() - t0}')
+        print(f'loss: {t_loss}')
         # Validation of the model.
         model.eval()
         correct = 0
@@ -56,9 +59,10 @@ def ford_a_train():
                 data, target = data.to(device, non_blocking=True), target.to(device, non_blocking=True)
                 output = model(data)
                 # Get the index of the max log-probability.
-                pred = output.argmax(dim=1, keepdim=True)
+                pred = output.round()
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         accuracy = correct / len(test_loader.dataset)
         print(accuracy)
     return model
+trained_model = ford_a_train()

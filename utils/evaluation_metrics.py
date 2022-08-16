@@ -2,6 +2,9 @@ import math
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from laplace import Laplace
+
+
 def check_accuracy(loader, model):
     num_correct = 0
     num_samples = 0
@@ -19,6 +22,7 @@ def check_accuracy(loader, model):
 
         print(f'Got {num_correct} / {num_samples} with accuracy {float(num_correct) / float(num_samples) * 100:.2f}')
 
+
 def predict(dataloader, model, laplace=False):
     py = []
 
@@ -30,20 +34,34 @@ def predict(dataloader, model, laplace=False):
 
     return torch.cat(py).cpu()
 
-def calculate_metric_base(model : torch.nn.Module, dataloader : DataLoader):
+
+def calculate_metric_base(model: Laplace, dataloader: DataLoader, n_trials=20):
+    means = []
+    standard_deviations = []
     predictions = []
+    targets = []
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
-    for x, _ in dataloader:
-        pred = model(x.to(device))
-        predictions.append(pred)
-    predictions = torch.cat(predictions)
-    '''standard_dev = np.std(predictions)
-    mean = np.mean(predictions)
-    prediction = np.round(predictions)'''
-    return predictions
+    for (x, y) in dataloader:
+        input = x.to(device)
+        output = y.to(device)
+        pred = model.predictive_samples(x=input, n_samples=n_trials, pred_type='nn')
+        x_m = pred.mean(axis=0)
+        means.append(x_m)
+        x_std = pred.std(axis=0)
+        standard_deviations.append(x_std)
+        x_h = x_m.argmax(dim=1, keepdim = True).squeeze()
+        predictions.append(x_h)
+        targets.append(output)
+    result_dict = {}
+    result_dict['means'] = torch.cat(means)
+    result_dict['standard_deviations'] = torch.cat(standard_deviations)
+    result_dict['predictions'] = torch.cat(predictions)
+    result_dict['targets'] = torch.cat(targets)
+    return result_dict
 
-def calculate_metric_mimo(model : torch.nn.Module, dataloader : DataLoader, ensemble_num):
+
+def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemble_num):
     predictions = []
     outputs = []
     use_cuda = torch.cuda.is_available()

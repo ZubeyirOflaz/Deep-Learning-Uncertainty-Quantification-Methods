@@ -66,7 +66,7 @@ print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 
 torch.cuda.empty_cache()
 
-subnetwork_mask = ModuleNameSubnetMask(arrhythmia_model, module_names=['6', '9'])
+subnetwork_mask = ModuleNameSubnetMask(arrhythmia_model, module_names=['9'])
 subnetwork_mask.select()
 subnetwork_indices = subnetwork_mask.indices
 

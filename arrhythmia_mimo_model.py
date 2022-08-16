@@ -12,6 +12,8 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 import torch.distributions as dists
 from sklearn import preprocessing
+from utils.helper import weighted_classes_arrhythmia
+import torcheck
 
 # Loading and preprocessing datasets, inputting some of the hyperparameters
 
@@ -92,24 +94,35 @@ dataset[279] = dataset[279] - 1
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
-ensemble_num = 3
-batch_size = 16
+ensemble_num = 4
+batch_size = 8
 num_workers = 0
-num_epochs = 150
+num_epochs = 50
 hidden_dims = 279
 num_categories = 16
+
 
 params = {'batch_size': batch_size,
           'num_workers': num_workers}
 
 df_dataset = pandas_dataset(dataset)
-train, test = random_split(df_dataset, [400, 52])
-train_loader = [DataLoader(train, shuffle=True, **params) for _ in range(ensemble_num)]
-test_loader = DataLoader(test, shuffle=False, **params)
+train, test = random_split(df_dataset, [400, 52], generator=torch.Generator().manual_seed(42))
+
+
+train_sample_dist = weighted_classes_arrhythmia(train)
+train_weights = torch.DoubleTensor(train_sample_dist)
+train_sampler = torch.utils.data.sampler.WeightedRandomSampler(train_weights, len(train_weights))
+
+test_sample_dist = weighted_classes_arrhythmia(test)
+test_weights = torch.DoubleTensor(test_sample_dist)
+test_sampler = torch.utils.data.sampler.WeightedRandomSampler(test_weights, len(test_weights))
+
+train_loader = [DataLoader(train, sampler=train_sampler, **params) for _ in range(ensemble_num)]
+test_loader = DataLoader(test, sampler=test_sampler, **params)
 
 arrhythmia_model_path = models['base_models']['arrhythmia']
 
-with open(arrhythmia_model_path, "rb") as fin:
+'''with open(arrhythmia_model_path, "rb") as fin:
     arrhythmia_model = pickle.load(fin)
 
 
@@ -132,7 +145,7 @@ probs_map = predict(test_loader, arrhythmia_model.to(device))
 acc_map = (probs_map.argmax(-1) == targets).float().mean()
 nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
-print(arrhythmia_model)
+print(arrhythmia_model)'''
 '''transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 train_dataset = datasets.MNIST("../data", train=True, download=True, transform=transform)
 test_dataset = datasets.MNIST("../data", train=False, transform=transform)
@@ -145,31 +158,30 @@ train_loader = [
 test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers)
 '''
 
+
 def optuna_model(trial):
     # Main MIMO model layer
     class MIMOModel(nn.Module):
         def __init__(self, hidden_dim: int = hidden_dims, ensemble_num: int = 3):
             super(MIMOModel, self).__init__()
             self.output_dim = trial.suggest_int('output_dim', 32, 1024)
-            self.input_layer = nn.Linear(hidden_dim, hidden_dim * ensemble_num)
+            # self.input_layer = nn.Linear(hidden_dim * ensemble_num, hidden_dim * ensemble_num)
             self.backbone_model = BackboneModel(hidden_dim, ensemble_num, self.output_dim)
             self.ensemble_num = ensemble_num
             self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
-            ensemble_num, batch_size, *_ = list(input_tensor.size())
-            input_tensor = input_tensor.transpose(1, 0).view(
-                batch_size, ensemble_num, -1
-            )  # (batch_size, ensemble_num, hidden_dim)
-            input_tensor = self.input_layer(input_tensor)  # (batch_size, ensemble_num, hidden_dim * ensemble_num)
+            batch_size = list(input_tensor.size())[0]
+            ensemble_num = self.ensemble_num
+            # input_tensor = self.input_layer(input_tensor)
 
             # usual model forward
-            output = self.backbone_model(input_tensor)  # (batch_size, ensemble_num, 128)
-            output = self.output_layer(output)  # (batch_size, ensemble_num, 16 * ensemble_num)
+            output = self.backbone_model(input_tensor)  # (batch_size, output_dim)
+            output = self.output_layer(output)  # (batch_size, 16 * ensemble_num)
             output = output.reshape(
-                batch_size, ensemble_num, -1, ensemble_num
+                batch_size, ensemble_num, -1#, ensemble_num
             )  # (batch_size, ensemble_num, 16, ensemble_num)
-            output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)  # (batch_size, ensemble_num, 16)
+            #output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)  # (batch_size, ensemble_num, 16)
             output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, 16)
             return output
 
@@ -186,8 +198,7 @@ def optuna_model(trial):
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
-                if dropout_rate > 0.05:
-                    layers.append(nn.Dropout(dropout_rate))
+                layers.append(nn.Dropout(dropout_rate))
                 in_features = out_dim
             layers.append(nn.Linear(in_features, output_dim))
             layers.append(nn.ReLU())
@@ -210,33 +221,36 @@ def objective(trial):
 
     model = optuna_model(trial=trial).to(device)
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", 1e-9, 1e-3, log=True)
+    lr = trial.suggest_float("lr", 1e-7, 1e-3, log=True)
     optimizer = getattr(optim, 'Adadelta')(model.parameters(), lr=lr)
-    gamma = trial.suggest_float('gamma', 0.0, 1.0)
+    gamma = trial.suggest_float('gamma', 0.7, 1.0)
     scheduler = StepLR(optimizer, step_size=len(train_loader[0]), gamma=gamma)
-
+    '''torcheck.register(optimizer)
+    torcheck.add_module_changing_check(model)
+    torcheck.add_module_nan_check(model)
+    torcheck.add_module_inf_check(model)'''
     # Training and eval loop
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0.0
         for datum in zip(*train_loader):
             # Training
-            #bug_dict['datum'] = datum
-            model_inputs = torch.stack([data[0] for data in datum]).to(device)
-            #model_inputs = model_inputs[:, :, None, :]
-            #bug_dict['model_inputs'] = model_inputs
+            # bug_dict['datum'] = datum
+            model_inputs = torch.cat([data[0] for data in datum], dim=1).to(device)
+            # model_inputs = model_inputs[:, :, None, :]
+            # bug_dict['model_inputs'] = model_inputs
             targets = torch.stack([data[1] for data in datum]).to(device)
-            #bug_dict['t_targets'] = targets
-            targets = targets.squeeze()
-            #bug_dict['t_targets_a'] = targets
-            ensemble_num, batch_size = list(targets.size())
+            # bug_dict['t_targets'] = targets
+            #targets = targets.squeeze()
+            # bug_dict['t_targets_a'] = targets
+            batch_size = list(targets.size())[1]
             optimizer.zero_grad()
-            outputs = model(model_inputs[:, :, None, :])
-            #bug_dict['t_outputs'] = outputs
+            outputs = model(model_inputs)
+            # bug_dict['t_outputs'] = outputs
             '''print('Preds Before')
             print(outputs.size())'''
-            #outputs = outputs.reshape(ensemble_num * batch_size, -1)
-            #targets = targets.reshape(ensemble_num * batch_size)
+            # outputs = outputs.reshape(ensemble_num * batch_size, -1)
+            # targets = targets.reshape(ensemble_num * batch_size)
             loss = F.nll_loss(
                 outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
             )
@@ -244,7 +258,7 @@ def objective(trial):
             loss.backward()
             optimizer.step()
             scheduler.step()
-        print(f'{epoch}: {loss}')
+        print(f'{epoch}: {train_loss}')
         '''print('Target Tensor')
         print(targets.reshape(ensemble_num * batch_size))
         print(targets.reshape(ensemble_num * batch_size).size())
@@ -258,37 +272,38 @@ def objective(trial):
         correct = 0
         with torch.no_grad():
             for data in test_loader:
-                model_inputs = torch.stack([data[0]] * ensemble_num).to(device)
-                #model_inputs = model_inputs[:, :, None, :]
+
+                model_inputs = torch.cat([data[0]] * ensemble_num, dim=1).to(device)
+
+                # model_inputs = model_inputs[:, :, None, :]
                 target = data[1].to(device)
                 target = target.squeeze()
-                #bug_dict['data'] = data
-                outputs = model(model_inputs[:, :, None, :])
-                #bug_dict['outputs'] = outputs
+                # bug_dict['data'] = data
+                outputs = model(model_inputs)
+                # bug_dict['outputs'] = outputs
                 output = torch.mean(outputs, axis=1)
-                #bug_dict['output'] = output
+                # bug_dict['output'] = output
                 # print(output)
                 # print(target)
-                #bug_dict['target'] = target
+                # bug_dict['target'] = target
                 test_loss += F.nll_loss(output, target, reduction="sum").item()
                 pred = output.argmax(dim=-1, keepdim=True)
-                #target_test = target.view_as(pred)
+                # target_test = target.view_as(pred)
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         test_loss /= len(test_loader.dataset)
         acc = 100.0 * correct / len(test_loader.dataset)
         print(f'epoch {epoch}: {acc}')
         trial.report(acc, epoch)
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+        '''if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()'''
 
     return acc
 
 
 # study = optuna.create_study(direction="maximize")
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=20, multivariate=True,
-                                                               group=True, constant_liar= True),
-                            direction='maximize')
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=100, multivariate=True
+                                                               , warn_independent_sampling=False), direction='maximize')
 study.optimize(objective, n_trials=200)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
@@ -307,4 +322,3 @@ print("  Value: ", trial.value)
 print("  Params: ")
 for key, value in trial.params.items():
     print("    {}: {}".format(key, value))
-

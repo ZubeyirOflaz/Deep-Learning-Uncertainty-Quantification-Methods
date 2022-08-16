@@ -22,6 +22,7 @@ class MimoTrainValidate:
         self.test_loader = testloader
         self.ensemble_num = len(trainloader)
         print('init complete')
+
     def model_train(self, num_epochs=50):
         train_loader = self.train_loader
         device = self.device
@@ -124,15 +125,32 @@ def weighted_classes(images, nclasses):
     return weight
 
 
-def plot_network(data_loader, model = None, model_path = None, from_path = True):
+def weighted_classes_arrhythmia(a_dataset, n_classes=16, return_count = False):
+    count = [0] * n_classes
+    for _, y in enumerate(a_dataset):
+        count[y[1].numpy()[0]] += 1
+    weight_per_class = [0.] * n_classes
+    N = float(sum(count))
+    for i in range(n_classes):
+        if count[i] == 0:
+            weight_per_class[i] = 0
+        else:
+            weight_per_class[i] = N / float(count[i])
+    weight = [0] * len(a_dataset)
+    for idx, val in enumerate(a_dataset):
+        weight[idx] = weight_per_class[val[1]]
+    if return_count:
+        return weight, count
+    else:
+        return weight
+
+
+def plot_network(data_loader, model=None, model_path=None, from_path=True):
     if from_path:
         with open(model_path, 'rb') as fin:
             model = pickle.load(fin)
     x, y = next(iter(data_loader))
     model_graph = make_dot(y, params=dict(list(model.named_parameters())))
-
-
-
 
 
 def imshow(image, ax=None, title=None, normalize=True):
@@ -202,8 +220,3 @@ def view_classify(img, ps, version="MNIST"):
     ax2.set_xlim(0, 1.1)
 
     plt.tight_layout()
-
-
-
-
-
