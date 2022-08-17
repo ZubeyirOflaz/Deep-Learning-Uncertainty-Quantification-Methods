@@ -54,10 +54,13 @@ def calculate_metric_base(model: Laplace, dataloader: DataLoader, n_trials=20):
         predictions.append(x_h)
         targets.append(output)
     result_dict = {}
+    predictions2 = torch.cat(predictions)
+    targets2 = torch.cat(targets)
     result_dict['means'] = torch.cat(means)
     result_dict['standard_deviations'] = torch.cat(standard_deviations)
-    result_dict['predictions'] = torch.cat(predictions)
-    result_dict['targets'] = torch.cat(targets)
+    result_dict['predictions'] = predictions2
+    result_dict['targets'] = targets2
+    result_dict['accuracy'] = predictions2.eq(targets2.view_as(predictions2))
     return result_dict
 
 
@@ -74,3 +77,13 @@ def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemb
         outputs.append(output)
     predictions = torch.cat(predictions)
     return predictions
+
+def calculate_kullback_leibner(model : torch.nn.Module, dataloader: DataLoader, ensemble_num):
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+    for (x,y) in dataloader:
+        input = x.to(device)
+        output = y.to(device)
+        pred = model(input)
+
+

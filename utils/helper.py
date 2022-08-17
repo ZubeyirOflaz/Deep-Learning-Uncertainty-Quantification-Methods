@@ -99,7 +99,6 @@ class MimoTrainValidate:
         if get_predictions is True:
             return predictions, targets
 
-
 def create_study_analysis(optuna_study):
     parameters = [i.params for i in optuna_study]
     accuracy = [y.value for y in optuna_study]
@@ -109,6 +108,20 @@ def create_study_analysis(optuna_study):
     df.assign(trial_state=state, inplace=True)
     df.sort_values('accuracy', ascending=False, inplace=True)
     return df
+
+
+def load_mimo_model(study_number: int, model_number : int):
+    from casting_mimo_model import mimo_cnn_model
+    with open(f'model_repo\\study_{study_number}.pkl', 'rb') as fin:
+        study = pickle.load(fin)
+    study_df = create_study_analysis(study.get_trials())
+    model = mimo_cnn_model(study.get_trials()[model_number])
+    state = model.load_state_dict(torch.load(f'model_repo\\{model_number}_{study_number}.pyt'))
+    print(state)
+    study_dict = study_df.loc[model_number]
+    return model, study_dict
+
+
 
 
 def weighted_classes(images, nclasses):

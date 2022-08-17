@@ -117,8 +117,8 @@ test_sample_dist = weighted_classes_arrhythmia(test)
 test_weights = torch.DoubleTensor(test_sample_dist)
 test_sampler = torch.utils.data.sampler.WeightedRandomSampler(test_weights, len(test_weights))
 
-train_loader = [DataLoader(train, sampler=train_sampler, **params) for _ in range(ensemble_num)]
-test_loader = DataLoader(test, sampler=test_sampler, **params)
+train_loader = [DataLoader(train, **params) for _ in range(ensemble_num)]
+test_loader = DataLoader(test, **params)
 
 arrhythmia_model_path = models['base_models']['arrhythmia']
 
@@ -192,9 +192,17 @@ def optuna_model(trial):
             super(BackboneModel, self).__init__()
             layers = []
             in_features = hidden_dim * ensemble_num
-            num_layers = trial.suggest_int('num_layers', 1, 5)
+            num_layers = trial.suggest_int('num_layers', 3, 8)
             for i in range(num_layers):
-                out_dim = trial.suggest_int('n_units_l{}'.format(i), 8, 1024)
+                max_lim = 10240
+                max_lim_corrected = 0
+                if i + 1 < 3:
+                    max_lim_corrected = max_lim
+                elif i + 1 < 5:
+                    max_lim_corrected = int(max_lim/2)
+                else:
+                    max_lim_corrected = int(max_lim/4)
+                out_dim = trial.suggest_int('n_units_l{}'.format(i), 64, max_lim_corrected)
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
@@ -221,7 +229,7 @@ def objective(trial):
 
     model = optuna_model(trial=trial).to(device)
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", 1e-7, 1e-3, log=True)
+    lr = trial.suggest_float("lr", 1e-7, 1e-4, log=True)
     optimizer = getattr(optim, 'Adadelta')(model.parameters(), lr=lr)
     gamma = trial.suggest_float('gamma', 0.7, 1.0)
     scheduler = StepLR(optimizer, step_size=len(train_loader[0]), gamma=gamma)
@@ -291,20 +299,20 @@ def objective(trial):
                 # target_test = target.view_as(pred)
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
-        test_loss /= len(test_loader.dataset)
+        #test_loss /= len(test_loader.dataset)
         acc = 100.0 * correct / len(test_loader.dataset)
         print(f'epoch {epoch}: {acc}')
-        trial.report(acc, epoch)
+        trial.report(train_loss + test_loss, epoch)
         '''if trial.should_prune():
             raise optuna.exceptions.TrialPruned()'''
 
-    return acc
+    return (train_loss + test_loss)
 
 
 # study = optuna.create_study(direction="maximize")
 study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=100, multivariate=True
-                                                               , warn_independent_sampling=False), direction='maximize')
-study.optimize(objective, n_trials=200)
+                                                               , warn_independent_sampling=False), direction='minimize')
+study.optimize(objective, n_trials=50)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
