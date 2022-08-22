@@ -47,12 +47,12 @@ def objective(trial):
         raise optuna.exceptions.TrialPruned()
 
     logging.debug('model has been compiled')
-    num_epoch = 75
+    num_epoch = 50
     # Generate the optimizers.
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
-    gamma = trial.suggest_float('gamma', 0.8, 1)
+    gamma = trial.suggest_float('gamma', 0.95, 1)
     scheduler = StepLR(optimizer, step_size=(len(train_loader)), gamma=gamma)
 
     # Training of the model.
@@ -105,7 +105,7 @@ def objective(trial):
 
 if __name__ == "__main__":
     study = optuna.create_study(direction="maximize", study_name=study_name, sampler=optuna.samplers.TPESampler(n_startup_trials=80))
-    study.optimize(objective, n_trials=250, timeout=60000)
+    study.optimize(objective, n_trials=100, timeout=60000)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -134,3 +134,4 @@ with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
     pickle.dump(study, fout)
 
 study1 = 7447174
+study2 = 7571770

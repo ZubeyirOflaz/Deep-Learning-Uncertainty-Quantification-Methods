@@ -52,7 +52,7 @@ class FordAConvModel(nn.Module):
 
         self.fc1 = nn.Linear(intermediate_dim, 256)
         self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc3 = nn.Linear(128, 2)
 
     def forward(self, x):
         x = torch.unsqueeze(x, dim=1)
@@ -72,9 +72,9 @@ class FordAConvModel(nn.Module):
         x = self.drop(x)
         x = F.relu(self.fc2(x))
         x = self.drop(x)
-        x = torch.sigmoid(self.fc3(x))
+        x = F.log_softmax(self.fc3(x))
 
-        x = torch.squeeze(x, dim=1)
+        #x = torch.squeeze(x, dim=1)
         return x
 
 
