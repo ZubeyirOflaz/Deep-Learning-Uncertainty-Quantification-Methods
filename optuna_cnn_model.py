@@ -63,7 +63,6 @@ def optuna_model(trial):
                                                 [64, 128, 512, 1024])
     dense_nodes_divisor = trial.suggest_categorical('dense_nodes_divisor',
                                                     [2, 4, 8])
-    batch_size = trial.suggest_categorical('batch_size', [32, 64, 96, 128])
     drop_out = trial.suggest_discrete_uniform('drop_out', 0.05, 0.5, 0.05)
 
     dict_params = {'num_cnn_blocks': num_cnn_blocks,

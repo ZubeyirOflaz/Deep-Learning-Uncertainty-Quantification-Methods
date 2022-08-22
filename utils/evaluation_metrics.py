@@ -35,7 +35,24 @@ def predict(dataloader, model, laplace=False):
     return torch.cat(py).cpu()
 
 
-def calculate_metric_base(model: Laplace, dataloader: DataLoader, n_trials=20):
+def calculate_ensemble_divergence(tensor: torch.Tensor):
+    divergence = torch.zeros(tensor.size()[0], 1)
+    for i in range(tensor.size()[0]):
+        divergence[i] = torch.sub(tensor, tensor[i]).abs().sum()
+    return divergence.transpose(0, 1)
+
+
+def create_kullback_leibner_divergence(tensor: torch.Tensor):
+    t_mean = tensor.mean(axis=1)
+    divergence_matrix = torch.zeros(tensor.size())
+    divergence_amount = torch.zeros(list(tensor.size())[:2])
+    for i in range(tensor.size()[0]):
+        divergence_matrix[i] = torch.sub(tensor[i], t_mean[i])
+        divergence_amount[i] = calculate_ensemble_divergence(divergence_matrix[i])
+    return divergence_matrix, divergence_amount
+
+
+def calculate_metric_laplace(model: Laplace, dataloader: DataLoader, n_trials=50):
     means = []
     standard_deviations = []
     predictions = []
@@ -50,17 +67,17 @@ def calculate_metric_base(model: Laplace, dataloader: DataLoader, n_trials=20):
         means.append(x_m)
         x_std = pred.std(axis=0)
         standard_deviations.append(x_std)
-        x_h = x_m.argmax(dim=1, keepdim = True).squeeze()
+        x_h = x_m.argmax(dim=1, keepdim=True).squeeze()
         predictions.append(x_h)
         targets.append(output)
     result_dict = {}
     predictions2 = torch.cat(predictions)
     targets2 = torch.cat(targets)
-    result_dict['means'] = torch.cat(means)
-    result_dict['standard_deviations'] = torch.cat(standard_deviations)
-    result_dict['predictions'] = predictions2
-    result_dict['targets'] = targets2
-    result_dict['accuracy'] = predictions2.eq(targets2.view_as(predictions2))
+    result_dict['means'] = torch.cat(means).cpu().detach().numpy()
+    result_dict['standard_deviations'] = torch.cat(standard_deviations).cpu().detach().numpy()
+    result_dict['predictions'] = predictions2.cpu().detach().numpy()
+    result_dict['targets'] = targets2.cpu().detach().numpy()
+    result_dict['accuracy'] = predictions2.eq(targets2.view_as(predictions2)).cpu().detach().numpy()
     return result_dict
 
 
@@ -78,12 +95,11 @@ def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemb
     predictions = torch.cat(predictions)
     return predictions
 
-def calculate_kullback_leibner(model : torch.nn.Module, dataloader: DataLoader, ensemble_num):
+
+def calculate_kullback_leibner(model: torch.nn.Module, dataloader: DataLoader, ensemble_num):
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
-    for (x,y) in dataloader:
+    for (x, y) in dataloader:
         input = x.to(device)
         output = y.to(device)
         pred = model(input)
-
-
