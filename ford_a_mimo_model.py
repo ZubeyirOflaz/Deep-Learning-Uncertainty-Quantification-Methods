@@ -44,12 +44,10 @@ train_loader = [DataLoader(train_dataset, batch_size=batch_size, num_workers=num
 test_loader = DataLoader(test_dataset, batch_size=batch_size, pin_memory=True, num_workers=num_workers)
 train_dataset = None
 test_dataset = None
-las_memory_info = {}
 
 
 def objective(trial):
     # Model and main parameter initialization
-    global las_memory_info
     torch.cuda.empty_cache()
     gc.collect()
     # las_memory_info = torch.cuda.memory_stats()

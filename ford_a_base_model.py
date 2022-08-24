@@ -3,12 +3,10 @@ from config import dataset_paths as args
 import torch
 import torch.nn.functional as F
 from utils.ford_a_dataloader import ARFFDataset
-from utils.ford_a_utils import FordAConvModel
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 import time
-import torcheck
 import logging
 import optuna
 from utils.ford_a_optuna_models import optuna_ford_a
@@ -29,12 +27,11 @@ num_workers = 0
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
-#torch.backends.cudnn.benchmark = True
 
 train_dataset = ARFFDataset(train_set_path, data_scaling = True)
 test_dataset = ARFFDataset(test_set_path, data_scaling = True)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory= True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory= True)
 
 
 def objective(trial):
@@ -78,8 +75,7 @@ def objective(trial):
         correct = 0
         with torch.no_grad():
             for batch_idx, (data, target) in enumerate(test_loader):
-                # Limiting validation data.
-                data, target = data.to(device).to(device, non_blocking=True)\
+                data, target = data.to(device, non_blocking=True)\
                     , target.to(device, non_blocking=True)
                 output = model(data.unsqueeze(dim = 1))
                 # Get the index of the max log-probability.
