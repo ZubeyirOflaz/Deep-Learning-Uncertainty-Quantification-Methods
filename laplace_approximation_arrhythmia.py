@@ -7,7 +7,7 @@ import numpy
 
 from torch.utils.data import Dataset, TensorDataset
 import pickle
-from utils.evaluation_metrics import predict
+from utils.evaluation_metrics import predict, calculate_metric_laplace
 from config import dataset_paths, models
 import os
 from laplace.utils import ModuleNameSubnetMask
@@ -75,7 +75,7 @@ subnetwork_indices = torch.LongTensor(subnetwork_indices.cpu())
 la = Laplace(arrhythmia_model, likelihood='classification', subset_of_weights='subnetwork',
              hessian_structure='full', subnetwork_indices=subnetwork_indices)
 la.fit(train_loader)
-la.optimize_prior_precision(method='CV', val_loader=train_loader)
+la.optimize_prior_precision(method='CV', val_loader=train_loader, n_samples=250, cv_loss_with_var= True, n_steps=200, lr= 5e-3)
 
 pred = predict(test_loader, la, laplace=True)
 

@@ -1,5 +1,8 @@
 import gc
 import os
+
+import pandas as pd
+
 from config import dataset_paths as args
 import torch
 import torch.nn.functional as F
@@ -16,7 +19,7 @@ import pickle
 import random
 from optuna.trial import TrialState
 from utils.helper import create_study_analysis, load_mimo_model, MimoTrainValidateFordA, MimoTrainValidateCasting
-from utils.evaluation_metrics import calculate_metric_mimo
+from utils.evaluation_metrics import calculate_metric_mimo, create_metric_dataframe
 
 study_name = str(random.randint(8000000, 8999999))
 
@@ -40,8 +43,8 @@ model_dict = {'ensemble_num': ensemble_num,
 
 train_dataset = ARFFDataset(train_set_path, data_scaling=False)
 test_dataset = ARFFDataset(test_set_path, data_scaling=False)
-train_loader = [DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers
-                           , pin_memory=True) for _ in range(ensemble_num)]
+train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers
+                           , pin_memory=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, pin_memory=True, num_workers=num_workers)
 train_dataset = None
 test_dataset = None
@@ -61,7 +64,14 @@ model_params = study_df.loc[model_instance]
 #preds, targets = model_class.model_validate(get_predictions=True)
 
 results_dict = calculate_metric_mimo(model,test_loader,3,'ford_a')
-
+ford_a_test_dataframe = create_metric_dataframe(results_dict, True)
+ford_a_test_dataframe['dataset'] = 'test'
+results_dict = calculate_metric_mimo(model,train_loader,3,'ford_a')
+ford_a_train_dataframe = create_metric_dataframe(results_dict,True)
+ford_a_train_dataframe['dataset'] = 'train'
+ford_a_dataframe = pd.concat([ford_a_train_dataframe,ford_a_test_dataframe], ignore_index= True)
+grouped_dataframe = pd.pivot_table(ford_a_dataframe, index = ['accuracy', 'dataset'],
+                                   values =['m_0','m_1','std_0','std_1','total_divergence'],
+                                   aggfunc = ['mean','min']).reset_index()
 # model = load_mimo_model(8966978, 169, model_dict= model_dict)
-
 gc.collect()
