@@ -11,9 +11,9 @@ from torchviz import make_dot, make_dot_from_trace
 import pickle
 
 
-class MimoTrainValidate:
+class MimoTrainValidateCasting:
     def __init__(self, mimo_model, hyperparameter_dict: dict, trainloader, testloader):
-        super(MimoTrainValidate, self).__init__()
+        super(MimoTrainValidateCasting, self).__init__()
         self.model = mimo_model
         self.dict = hyperparameter_dict
         use_cuda = torch.cuda.is_available()
@@ -99,6 +99,95 @@ class MimoTrainValidate:
         if get_predictions is True:
             return predictions, targets
 
+class MimoTrainValidateFordA:
+    def __init__(self, mimo_model, hyperparameter_dict: dict, trainloader, testloader):
+        super(MimoTrainValidateFordA, self).__init__()
+        self.model = mimo_model
+        self.dict = hyperparameter_dict
+        use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda:0" if use_cuda else "cpu")
+        self.train_loader = trainloader
+        self.test_loader = testloader
+        self.ensemble_num = len(trainloader)
+        print('init complete')
+
+    def model_train(self, num_epochs=50):
+        ensemble_num = self.ensemble_num
+        train_loader = self.train_loader
+        device = self.device
+        model = self.model.to(device)
+        lr = self.dict['lr'].values[0]
+        gamma = self.dict['gamma'].values[0]
+        optimizer = getattr(optim, 'Adam')(model.parameters(), lr=lr)
+        scheduler = StepLR(optimizer, step_size=(len(train_loader[0])), gamma=gamma)
+        for epoch in range(num_epochs):
+            model.train()
+            train_loss = 0.0
+            for datum in zip(*train_loader):
+                # Training
+                # bug_dict['datum'] = datum
+                model_inputs = torch.cat([data[0] for data in datum], dim=1).to(device, non_blocking=True)
+                # model_inputs = model_inputs[:, :, None, :]
+                # bug_dict['model_inputs'] = model_inputs
+                targets = torch.stack([data[1] for data in datum]).type(torch.LongTensor).to(device, non_blocking=True)
+                # bug_dict['t_targets'] = targets
+                # bug_dict['t_targets_a'] = targets
+                optimizer.zero_grad()
+                outputs = model(model_inputs[:, None, :])
+                batch_size = list(targets.size())[1]
+                # bug_dict['t_outputs'] = outputs
+                loss = F.nll_loss(
+                    outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
+                )
+                train_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
+            print(f'{epoch}: {train_loss}')
+            self.model_validate()
+        self.model = model
+        print('model has been updated')
+        return model, self
+
+    def model_validate(self, get_predictions=False):
+        test_loader = self.test_loader
+        device = self.device
+        ensemble_num = self.ensemble_num
+        model = self.model.to(device)
+        model.eval()
+        test_loss = 0
+        test_size = 0
+        correct = 0
+        predictions = []
+        targets = []
+        with torch.no_grad():
+            for data in test_loader:
+                model_inputs = torch.cat([data[0]] * ensemble_num, dim=1).to(device)
+                # model_inputs = model_inputs[:, :, None, :]
+                target = data[1].squeeze().type(torch.LongTensor).to(device)
+                # bug_dict['data'] = data
+                outputs = model(model_inputs[:, None, :])
+                # bug_dict['outputs'] = outputs
+                output = torch.mean(outputs, axis=1)
+                # bug_dict['output'] = output
+                # print(output)
+                # print(target)
+                # bug_dict['target'] = target
+                test_size += len(target)
+                test_loss += F.nll_loss(output, target, reduction="sum").item()
+                pred = output.argmax(dim=-1, keepdim=True)
+                if get_predictions is True:
+                    predictions.extend(output.cpu().tolist())
+                    targets.extend(target.cpu().tolist())
+                # target_test = target.view_as(pred)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+
+        test_loss /= test_size
+        acc = 100.0 * correct / test_size
+        print(f'Current Accuracy: {acc}')
+        if get_predictions is True:
+            return predictions, targets
+
 def create_study_analysis(optuna_study):
     parameters = [i.params for i in optuna_study]
     accuracy = [y.value for y in optuna_study]
@@ -110,12 +199,16 @@ def create_study_analysis(optuna_study):
     return df
 
 
-def load_mimo_model(study_number: int, model_number : int):
+def load_mimo_model(study_number: int, model_number : int, model_dict = None):
     from casting_mimo_model import mimo_cnn_model
+    from utils.ford_a_optuna_models import optuna_ford_a_mimo
     with open(f'model_repo\\study_{study_number}.pkl', 'rb') as fin:
         study = pickle.load(fin)
     study_df = create_study_analysis(study.get_trials())
-    model = mimo_cnn_model(study.get_trials()[model_number])
+    if model_dict is None:
+        model = mimo_cnn_model(study.get_trials()[model_number])
+    else:
+        model = optuna_ford_a_mimo(study.get_trials()[model_number], model_dict)
     state = model.load_state_dict(torch.load(f'model_repo\\{model_number}_{study_number}.pyt'))
     print(state)
     study_dict = study_df.loc[model_number]

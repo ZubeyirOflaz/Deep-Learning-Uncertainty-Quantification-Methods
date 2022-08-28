@@ -14,9 +14,15 @@ dataset_paths = {
 models = {
     'base_models': {
         'arrhythmia': 'Models\\arrhythmia_base.pickle',
-        'casting' : 'Models\\casting_base.pickle'
+        'casting' : 'Models\\casting_base.pickle',
+        'ford_a' : 'Models\\ford_a_base.pickle'
     },
     'laplace_approximation':{
-      'casting' : 'Models\\laplace_approximation_casting.pkl'
+      'casting' : 'Models\\laplace_approximation_casting.pkl',
+      'arrhythmia' : 'Models\\laplace_approximaton_arrhythmia.pickle'
+    },
+    'mimo_models' : {
+        'casting_model' : 'Models\\casting_mimo_model.pyt',
+        'casting_study' : 'Models\\casting_mimo_study.pkl'
     }
 }

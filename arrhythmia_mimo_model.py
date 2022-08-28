@@ -1,5 +1,8 @@
+import random
+import math
 import optuna
 from optuna.trial import TrialState
+import os
 import pandas as pd
 from config import dataset_paths, models
 import pickle
@@ -17,9 +20,10 @@ import torcheck
 
 # Loading and preprocessing datasets, inputting some of the hyperparameters
 
-'''ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+R'''OOT_DIR = os.path.dirname(os.path.abspath(__file__))
 arrhythmia_train_path = ROOT_DIR + dataset_paths['arrhythmia_train']
 arrhythmia_test_path = ROOT_DIR + dataset_paths['arrhythmia_test']
+study_name = str(random.randint(200000, 299999))
 
 arrhythmia_model_path = models['base_models']['arrhythmia']
 
@@ -33,10 +37,11 @@ with open(arrhythmia_test_path, 'rb') as fin:
     arrhythmia_test = numpy.load(fin, allow_pickle=True)
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
-ensemble_num = 4
-batch_size = 16
+ensemble_num = 3
+batch_size = 8
 num_workers = 0
 num_epochs = 20
+n_random_trials = 75
 
 params = {'batch_size': batch_size,
           'num_workers': num_workers}
@@ -59,8 +64,8 @@ test_x = torch.tensor([i.numpy() for i in test_x]).to(torch.device('cuda'))
 test_y = torch.tensor([i.numpy() for i in test_y]).to(torch.device('cuda')).flatten()
 test = TensorDataset(test_x, test_y)
 
-test_loader = DataLoader(test, shuffle=False, **params)'''
-
+test_loader = DataLoader(test, shuffle=False, **params)
+'''
 
 # Dataloader for pandas dataframe to pytorch dataset conversion
 class pandas_dataset(Dataset):
@@ -91,22 +96,26 @@ dataset = pd.read_csv(arrhythmia_data, header=None)
 dataset = dataset.replace('?', numpy.nan)
 dataset.fillna(dataset.median(), inplace=True)
 dataset[279] = dataset[279] - 1
+study_name = str(random.randint(200000, 299999))
+
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
-ensemble_num = 4
-batch_size = 8
+ensemble_num = 3
+batch_size = 4
 num_workers = 0
-num_epochs = 50
+num_epochs = 75
 hidden_dims = 279
 num_categories = 16
-
+n_random_trials = 75
+seed = random.randint(0, 1000)
+print(seed)
 
 params = {'batch_size': batch_size,
           'num_workers': num_workers}
 
 df_dataset = pandas_dataset(dataset)
-train, test = random_split(df_dataset, [400, 52], generator=torch.Generator().manual_seed(42))
+train, test = random_split(df_dataset, [400, 52], generator=torch.Generator().manual_seed(294))
 
 
 train_sample_dist = weighted_classes_arrhythmia(train)
@@ -192,17 +201,13 @@ def optuna_model(trial):
             super(BackboneModel, self).__init__()
             layers = []
             in_features = hidden_dim * ensemble_num
-            num_layers = trial.suggest_int('num_layers', 3, 8)
+            num_layers = trial.suggest_int('num_layers', 3, 4)
             for i in range(num_layers):
-                max_lim = 10240
-                max_lim_corrected = 0
-                if i + 1 < 3:
-                    max_lim_corrected = max_lim
-                elif i + 1 < 5:
-                    max_lim_corrected = int(max_lim/2)
-                else:
-                    max_lim_corrected = int(max_lim/4)
-                out_dim = trial.suggest_int('n_units_l{}'.format(i), 64, max_lim_corrected)
+                max_lim = 32768
+                min_lim = 5096
+                max_lim_corrected = int(max_lim / math.pow(2, (i+1)))
+                min_lim_corrected = int(min_lim/(i+1))
+                out_dim = trial.suggest_int('n_units_l{}'.format(i), min_lim_corrected, max_lim_corrected)
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
@@ -224,14 +229,17 @@ def optuna_model(trial):
 bug_dict = {}
 
 
-def objective(trial):
+def objective(trial, model = None):
     # Model and main parameter initialization
-
-    model = optuna_model(trial=trial).to(device)
+    if model is not None:
+        model = model
+    else:
+        model = optuna_model(trial=trial).to(device)
+    print(model)
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", 1e-7, 1e-4, log=True)
+    lr = trial.suggest_float("lr", 1e-6, 5e-2, log=True)
     optimizer = getattr(optim, 'Adadelta')(model.parameters(), lr=lr)
-    gamma = trial.suggest_float('gamma', 0.7, 1.0)
+    gamma = trial.suggest_float('gamma', 0.90, 1.0)
     scheduler = StepLR(optimizer, step_size=len(train_loader[0]), gamma=gamma)
     '''torcheck.register(optimizer)
     torcheck.add_module_changing_check(model)
@@ -262,11 +270,10 @@ def objective(trial):
             loss = F.nll_loss(
                 outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
             )
-            train_loss += loss
+            train_loss += loss.item()
             loss.backward()
             optimizer.step()
             scheduler.step()
-        print(f'{epoch}: {train_loss}')
         '''print('Target Tensor')
         print(targets.reshape(ensemble_num * batch_size))
         print(targets.reshape(ensemble_num * batch_size).size())
@@ -300,19 +307,23 @@ def objective(trial):
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         #test_loss /= len(test_loader.dataset)
+        total_loss = train_loss + test_loss
         acc = 100.0 * correct / len(test_loader.dataset)
-        print(f'epoch {epoch}: {acc}')
-        trial.report(train_loss + test_loss, epoch)
-        '''if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()'''
+        print(f'Epoch {epoch}: {total_loss}')
+        print(f'Accuracy {epoch}: {acc}')
+        #trial.report(acc, epoch)
+        #if trial.should_prune() and trial.number > n_random_trials:
+        #    raise optuna.exceptions.TrialPruned()
+    torch.save(model.state_dict(), f"model_repo\\{trial.number}_{study_name}.pyt")
 
-    return (train_loss + test_loss)
+    return (total_loss, acc)
 
 
 # study = optuna.create_study(direction="maximize")
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=100, multivariate=True
-                                                               , warn_independent_sampling=False), direction='minimize')
-study.optimize(objective, n_trials=50)
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(n_startup_trials=n_random_trials, multivariate=True
+                                                               , warn_independent_sampling=False),
+                            directions=['minimize', 'maximize'], study_name=study_name)
+study.optimize(objective, n_trials=150)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -330,3 +341,16 @@ print("  Value: ", trial.value)
 print("  Params: ")
 for key, value in trial.params.items():
     print("    {}: {}".format(key, value))
+
+with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
+    pickle.dump(study, fout)
+
+optuna.visualization.plot_pareto_front(study, target_names=["total_loss", "acc"])
+optuna.visualization.plot_param_importances(
+    study, target=lambda t: t.values[0], target_name="acc"
+)
+optuna.visualization.plot_param_importances(
+    study, target=lambda t: t.values[0], target_name="total_loss"
+)
+
+

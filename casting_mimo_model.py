@@ -28,7 +28,6 @@ ensemble_num = 3
 num_categories = 2
 study_name = str(random.randint(100000, 999999))
 
-
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
 torch.backends.cudnn.benchmark = True
@@ -57,19 +56,20 @@ test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, sampler
 
 N_TRAIN_EXAMPLES = len(train_set)
 N_TEST_EXAMPLES = len(test_set)
-
+n_random_trials = 30
 
 def mimo_cnn_model(trial):
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
             super(MimoCnnModel, self).__init__()
-            self.output_dim = trial.suggest_int('output_dim', 32, 1024)
-            self.num_channels = trial.suggest_int('num_channels', 64, 128)
-            self.final_img_resolution = 12
-            self.input_dim = self.num_channels * (self.final_img_resolution * self.final_img_resolution) * ensemble_num
+            self.output_dim = trial.suggest_int('output_dim', 64, 1024)
+            self.num_channels = trial.suggest_int('num_channels', 128, 382)
+            self.final_img_resolution = 6
+            self.input_dim = self.num_channels * ((self.final_img_resolution -2) *
+                                                  ((self.final_img_resolution * ensemble_num)-8))
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
             self.linear_module = LinearModule(self.input_dim, self.output_dim)
-            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num * ensemble_num)
+            self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
             batch_size = input_tensor.size()[0]
@@ -83,10 +83,10 @@ def mimo_cnn_model(trial):
             output = self.output_layer(output)
             # print(output.size())
             output = output.reshape(
-                batch_size, ensemble_num, -1, ensemble_num
-            )  # (batch_size, ensemble_num, num_categories, ensemble_num)
+                batch_size, ensemble_num, -1
+            )  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
-            output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
+            # output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
             output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
@@ -96,24 +96,31 @@ def mimo_cnn_model(trial):
         def __init__(self, num_channels: int, final_img_resolution: int, ensemble_num: int):
             super(ConvModule, self).__init__()
             layers = []
-            num_layers = trial.suggest_int('num_cnn_layers', 2, 2)
+            num_layers = trial.suggest_int('num_cnn_layers', 3, 3)
             input_channels = 1
             for i in range(num_layers):
-                filter_base = [4, 8, 16]
-                filter_selections = [i * (num_layers + 1) for i in filter_base]
+                filter_base = [4, 8, 16, 32, 64]
+                filter_selections = [y * (i + 1) for y in filter_base]
                 num_filters = trial.suggest_categorical(f'num_filters_{i}', filter_selections)
-                kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 4)
-                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size, (kernel_size * ensemble_num))))
+                kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 3)
+
                 if i < 2:
                     pool_stride = 2
                 else:
                     pool_stride = 1
-                layers.append(nn.ReLU())
-                layers.append(nn.MaxPool2d((2, 2 * ensemble_num), pool_stride))
+                layers.append(nn.Conv2d(input_channels, num_filters, (kernel_size,
+                                                                      (kernel_size * ensemble_num)),stride=pool_stride))
+                if i < 1:
+                    pool_stride = 2
+                else:
+                    pool_stride = 1
+                if i < num_layers-1:
+                    layers.append(nn.ReLU())
+                    layers.append(nn.MaxPool2d((2, 2 * ensemble_num), pool_stride))
                 input_channels = num_filters
+            layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             layers.append(nn.Conv2d(input_channels, num_channels, (3, 3 * ensemble_num)))
             layers.append(nn.ReLU())
-            layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             self.layers = layers
             self.module = nn.Sequential(*self.layers).to(device)
 
@@ -128,7 +135,9 @@ def mimo_cnn_model(trial):
             in_features = input_dimension
             num_layers = 2  # trial.suggest_int('num_layers', 1, 3)
             for i in range(num_layers):
-                out_dim = trial.suggest_int('n_units_l{}'.format(i), 128, 2048)
+                min_lim = int(512 / int(i+1))
+                max_lim = int(2048 / (int(i+1)))
+                out_dim = trial.suggest_int('n_units_l{}'.format(i), min_lim, max_lim)
                 layers.append(nn.Linear(in_features, out_dim))
                 layers.append(nn.ReLU())
                 dropout_rate = trial.suggest_float('dr_rate_l{}'.format(i), 0.0, 0.5)
@@ -152,6 +161,7 @@ def objective(trial):
     # Model and main parameter initialization
     try:
         model = mimo_cnn_model(trial=trial).to(device)
+        print(model)
     except Exception as e:
         print('Infeasible model, trial will be skipped')
         print(e)
@@ -159,10 +169,10 @@ def objective(trial):
     # optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
     lr = trial.suggest_float("lr", 1e-4, 5e-2, log=True)
     optimizer = getattr(optim, 'Adam')(model.parameters(), lr=lr)
-    gamma = trial.suggest_float('gamma', 0.5, 1)
+    gamma = trial.suggest_float('gamma', 0.85, 1)
     scheduler = StepLR(optimizer, step_size=(len(train_loader[0])), gamma=gamma)
 
-    num_epochs = 20
+    num_epochs = 25
     '''torcheck.register(optimizer)
     torcheck.add_module_changing_check(model)
     torcheck.add_module_nan_check(model)
@@ -189,7 +199,7 @@ def objective(trial):
             loss = F.nll_loss(
                 outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
             )
-            train_loss += loss
+            train_loss += loss.item()
             loss.backward()
             optimizer.step()
             scheduler.step()
@@ -229,7 +239,7 @@ def objective(trial):
         acc = 100.0 * correct / test_size
         print(f'epoch {epoch}: {acc}')
         trial.report(acc, epoch)
-        if trial.should_prune():  # or (epoch > 4 and acc < 52):
+        if trial.should_prune() and trial.number > n_random_trials:  # or (epoch > 4 and acc < 52):
             raise optuna.exceptions.TrialPruned()
     torch.save(model.state_dict(), f"model_repo\\{trial.number}_{study_name}.pyt")
 
@@ -239,7 +249,7 @@ def objective(trial):
     return acc
 
 
-study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True, group=True, n_startup_trials=20),
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(multivariate=True, group=True, n_startup_trials=n_random_trials),
                             direction='maximize', study_name=study_name)
 
 study.optimize(objective, n_trials=50)
@@ -269,5 +279,8 @@ trial_dataframe = create_study_analysis(study.get_trials(deepcopy=True))
 with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
     pickle.dump(study, fout)
 
-study_1 = '752844'
-study_2 = '243222'
+study_1 = 752844
+study_2 = 243222
+study_3 = 436439
+study_5 = 468032
+
