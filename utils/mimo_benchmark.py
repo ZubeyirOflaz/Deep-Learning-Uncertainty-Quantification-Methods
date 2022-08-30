@@ -5,23 +5,14 @@ import pandas as pd
 
 from config import dataset_paths as args
 import torch
-import torch.nn.functional as F
 from utils.ford_a_dataloader import ARFFDataset
-import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-import time
-import torcheck
-import logging
-import optuna
 from utils.ford_a_optuna_models import optuna_ford_a_mimo
 import pickle
 import random
-from optuna.trial import TrialState
 from utils.helper import create_study_analysis, load_mimo_model, MimoTrainValidateFordA, MimoTrainValidateCasting
 from utils.evaluation_metrics import calculate_metric_mimo, create_metric_dataframe
 
-study_name = str(random.randint(8000000, 8999999))
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = '\\'.join(ROOT_DIR.split('\\')[:-1])
