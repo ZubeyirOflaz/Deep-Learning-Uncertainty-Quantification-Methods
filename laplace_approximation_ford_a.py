@@ -24,7 +24,7 @@ train_set_path = ROOT_DIR + args['ford_a_train']
 test_set_path = ROOT_DIR + args['ford_a_test']
 model_path = ROOT_DIR + models['base_models']['ford_a']
 
-batch_size = 7
+batch_size = 64
 num_workers = 0
 
 use_cuda = torch.cuda.is_available()
@@ -47,7 +47,22 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size,
 with open(model_path, "rb") as fin:
     ford_a_model = pickle.load(fin)
 
-ford_a_model.to(device)
+ford_a_model =  ford_a_model.to(device)
+
+targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
+targets = torch.reshape(targets,(-1,)).to(device)
+targets_train = torch.cat([y for x, y in train_loader], dim=0).cpu()
+targets_train = torch.reshape(targets_train,(-1,)).to(device)
+
+
+probs_map = predict(test_loader, ford_a_model).to(device)
+acc_map = (probs_map.argmax(-1) == targets).float().mean()
+nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
+print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
+get_metrics(probs_map,targets)
+probs_map_train = predict(train_loader,ford_a_model).to(device)
+print('Metrics for train dataset')
+get_metrics(probs_map_train,targets_train)
 
 subnetwork_mask = ModuleNameSubnetMask(ford_a_model, module_names=['29'])
 subnetwork_mask.select()
@@ -60,16 +75,8 @@ la = Laplace(ford_a_model, likelihood='classification', subset_of_weights='subne
 print('fitting started')
 la.fit(train_loader)
 print('fitting complete')
-la.optimize_prior_precision(method='CV', val_loader=train_loader, pred_type='gp')
+la.optimize_prior_precision(method='CV', val_loader=train_loader, pred_type='nn',n_steps=25,lr=1e-2,verbose=True)
 
-targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
-targets = torch.reshape(targets,(-1,)).to(device)
-
-
-probs_map = predict(test_loader, ford_a_model).to(device)
-acc_map = (probs_map.argmax(-1) == targets).float().mean()
-nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
-print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 
 
 
@@ -80,7 +87,7 @@ probs_laplace = predict(test_loader, la, laplace=True).to(device)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
 #ece_laplace = ECE(bins=10).measure(probs_laplace.numpy(), targets.numpy())
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
-
+get_metrics(probs_laplace,targets)
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
 
 results_dict = calculate_metric_laplace(la,test_loader,100)

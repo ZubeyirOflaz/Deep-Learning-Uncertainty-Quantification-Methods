@@ -7,11 +7,14 @@ from config import dataset_paths as args
 import torch
 from utils.ford_a_dataloader import ARFFDataset
 from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 from utils.ford_a_optuna_models import optuna_ford_a_mimo
 import pickle
 import random
-from utils.helper import create_study_analysis, load_mimo_model, MimoTrainValidateFordA, MimoTrainValidateCasting
+from utils.helper import create_study_analysis, load_mimo_model, \
+    MimoTrainValidateFordA, MimoTrainValidateCasting, weighted_classes
 from utils.evaluation_metrics import calculate_metric_mimo, create_metric_dataframe
+from utils.mimo_archive import mimo_cnn_model
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,3 +69,52 @@ grouped_dataframe = pd.pivot_table(ford_a_dataframe, index = ['accuracy', 'datas
                                    aggfunc = ['mean','min']).reset_index()
 # model = load_mimo_model(8966978, 169, model_dict= model_dict)
 gc.collect()
+
+#train_set_path = ROOT_DIR + args['casting_train']
+test_set_path = ROOT_DIR + args['casting_test']
+
+batch_size = 8
+image_resolution = 63
+num_workers = 0
+ensemble_num = 3
+num_categories = 2
+study_name = str(random.randint(100000, 999999))
+
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda:0" if use_cuda else "cpu")
+torch.backends.cudnn.benchmark = True
+
+transformations = transforms.Compose([transforms.Resize(int((image_resolution + 1) * 1.10)),
+                                      transforms.RandomCrop(image_resolution),
+                                      transforms.Grayscale(),
+                                      transforms.ToTensor(),
+                                      transforms.Normalize(0.5, 0.5)])
+
+train_set = datasets.ImageFolder(train_set_path, transform=transformations)
+train_sample_dist = weighted_classes(train_set.imgs, len(train_set.classes))
+train_weights = torch.DoubleTensor(train_sample_dist)
+train_sampler = torch.utils.data.sampler.WeightedRandomSampler(train_weights, len(train_weights))
+train_loader = [torch.utils.data.DataLoader(train_set, batch_size=batch_size,
+                                            shuffle=False, num_workers=num_workers, sampler=train_sampler,
+                                            pin_memory=True)
+                for _ in range(ensemble_num)]
+
+test_set = datasets.ImageFolder(test_set_path, transform=transformations)
+test_sample_dist = weighted_classes(test_set.imgs, len(test_set.classes))
+test_weights = torch.DoubleTensor(test_sample_dist)
+test_sampler = torch.utils.data.sampler.WeightedRandomSampler(test_weights, len(test_weights))
+
+test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, sampler=test_sampler, num_workers=num_workers)
+
+
+
+
+casting_study_path = 'N:\Thesis\Models\casting_mimo_study.pkl'
+casting_model_path = 'N:\Thesis\Models\casting_mimo_model.pyt'
+
+with open(casting_study_path, 'rb') as fin:
+    casting_study = pickle.load(fin)
+study_df = create_study_analysis(study.get_trials())
+
+model = mimo_cnn_model(casting_study.best_trial)
+model.load_state_dict(torch.load(casting_model_path))

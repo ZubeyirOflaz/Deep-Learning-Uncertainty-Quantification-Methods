@@ -81,7 +81,7 @@ pred = predict(test_loader, la, laplace=True)
 
 probs_laplace = predict(test_loader, la, laplace=True)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
-# ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
+ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
 
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
