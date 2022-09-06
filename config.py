@@ -15,11 +15,11 @@ models = {
     'base_models': {
         'arrhythmia': 'Models\\arrhythmia_base.pickle',
         'casting' : 'Models\\casting_base.pickle',
-        'ford_a' : 'Models\\ford_a_base.pickle'
+        'ford_a' : '\\Models\\ford_a_base.pickle'
     },
     'laplace_approximation':{
-      'casting' : 'Models\\laplace_approximation_casting.pkl',
-      'arrhythmia' : 'Models\\laplace_approximaton_arrhythmia.pickle'
+      'casting' : '\\Models\\laplace_approximation_casting.pkl',
+      'arrhythmia' : '\\Models\\laplace_approximation_arrhythmia.pickle'
     },
     'mimo_models' : {
         'casting_model' : 'Models\\casting_mimo_model.pyt',

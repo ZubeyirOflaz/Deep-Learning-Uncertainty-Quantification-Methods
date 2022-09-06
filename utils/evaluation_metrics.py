@@ -1,9 +1,14 @@
 import math
+
+import numpy
 import numpy as np
+import pandas
 import torch
 from torch.utils.data import DataLoader
 from laplace import Laplace
 import pandas as pd
+import torch.distributions as dists
+import torchmetrics
 
 
 def check_accuracy(loader, model):
@@ -31,10 +36,17 @@ def predict(dataloader, model, laplace=False):
         if laplace:
             py.append(model(x.cuda()))
         else:
-            py.append(torch.softmax(model(x.cuda()), dim=-1))
-
+            py.append(torch.softmax(model(x.cuda()), dim=-1).cpu().detach().numpy())
+    if not laplace:
+        return torch.Tensor(numpy.concatenate(py)).cpu()
     return torch.cat(py).cpu()
 
+def get_metrics(predictions, targets, ece_bins = 10):
+    accuracy = (predictions.argmax(-1) == targets).float().mean()
+    nll = -dists.Categorical(predictions).log_prob(targets).mean()
+    ece = torchmetrics.functional.calibration_error(predictions,targets,n_bins=ece_bins)
+    rmsce = torchmetrics.functional.calibration_error(predictions,targets,n_bins=ece_bins,norm='l2')
+    print(f'Acc: {accuracy}, nll: {nll}, ece: {ece}, rmsce: {rmsce}')
 
 def calculate_ensemble_divergence(tensor: torch.Tensor):
     divergence = torch.zeros(tensor.size()[0], 1)
@@ -72,7 +84,11 @@ def calculate_metric_laplace(model: Laplace, dataloader: DataLoader, n_trials=50
         predictions.append(x_h)
         targets.append(output)
     result_dict = {}
-    predictions2 = torch.cat(predictions)
+    try:
+        predictions2 = torch.cat(predictions)
+    except:
+        predictions2[len(predictions)-1] = predictions[len(predictions)-1].unsqueeze(dim =0)
+        predictions2 = torch.cat(predictions)
     targets2 = torch.cat(targets)
     result_dict['means'] = torch.cat(means).cpu().detach().numpy()
     result_dict['standard_deviations'] = torch.cat(standard_deviations).cpu().detach().numpy()
@@ -104,9 +120,9 @@ def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemb
         if model_type == 'ford_a':
             outputs = model(model_inputs[:, None, :])
         else:
-            outputs = model(model_inputs)
-        output = torch.mean(outputs, axis=1)
-        standard_deviation = torch.std(outputs, axis=1)
+            outputs = model(model_inputs).cpu().detach()
+        output = torch.mean(outputs, axis=1).cpu().detach()
+        standard_deviation = torch.std(outputs, axis=1).cpu().detach()
         prediction = output.argmax(dim=-1, keepdim=True)
         k_l_matrix, k_l_value = create_kullback_leibner_divergence(outputs)
         predictions.append(outputs)
@@ -114,14 +130,14 @@ def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemb
         standard_deviations.append(standard_deviation)
         outputs_master.append(prediction)
         targets.append(target)
-        k_l_matrices.append(k_l_matrix)
-        k_l_values.append(k_l_value)
+        k_l_matrices.append(k_l_matrix.cpu().detach())
+        k_l_values.append(k_l_value.cpu().detach())
     prediction = torch.cat(outputs_master)
     try:
-        targets = torch.cat(targets)
+        targets = torch.cat(targets).cpu().detach()
     except:
         targets[len(targets)-1] = targets[len(targets)-1].unsqueeze(dim =0)
-        targets = torch.cat(targets)
+        targets = torch.cat(targets).cpu().detach()
     result_dict['means'] = torch.cat(means).cpu().detach().numpy()
     result_dict['standard_deviations'] = torch.cat(standard_deviations).cpu().detach().numpy()
     result_dict['kullback_leibner_matrices'] = torch.cat(k_l_matrices).cpu().detach().numpy()
@@ -160,10 +176,7 @@ def create_metric_dataframe(metrics_dict, mimo_metric=False):
     return df
 
 
-def calculate_kullback_leibner(model: torch.nn.Module, dataloader: DataLoader, ensemble_num):
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda:0" if use_cuda else "cpu")
-    for (x, y) in dataloader:
-        input = x.to(device)
-        output = y.to(device)
-        pred = model(input)
+
+def get_very_high_confidence(df: pandas.DataFrame, column_name : str):
+
+    return None
