@@ -41,12 +41,14 @@ def predict(dataloader, model, laplace=False):
         return torch.Tensor(numpy.concatenate(py)).cpu()
     return torch.cat(py).cpu()
 
-def get_metrics(predictions, targets, ece_bins = 10):
+
+def get_metrics(predictions, targets, ece_bins=10):
     accuracy = (predictions.argmax(-1) == targets).float().mean()
     nll = -dists.Categorical(predictions).log_prob(targets).mean()
-    ece = torchmetrics.functional.calibration_error(predictions,targets,n_bins=ece_bins)
-    rmsce = torchmetrics.functional.calibration_error(predictions,targets,n_bins=ece_bins,norm='l2')
+    ece = torchmetrics.functional.calibration_error(predictions, targets, n_bins=ece_bins)
+    rmsce = torchmetrics.functional.calibration_error(predictions, targets, n_bins=ece_bins, norm='l2')
     print(f'Acc: {accuracy}, nll: {nll}, ece: {ece}, rmsce: {rmsce}')
+
 
 def calculate_ensemble_divergence(tensor: torch.Tensor):
     divergence = torch.zeros(tensor.size()[0], 1)
@@ -87,7 +89,7 @@ def calculate_metric_laplace(model: Laplace, dataloader: DataLoader, n_trials=50
     try:
         predictions2 = torch.cat(predictions)
     except:
-        predictions2[len(predictions)-1] = predictions[len(predictions)-1].unsqueeze(dim =0)
+        predictions2[len(predictions) - 1] = predictions[len(predictions) - 1].unsqueeze(dim=0)
         predictions2 = torch.cat(predictions)
     targets2 = torch.cat(targets)
     result_dict['means'] = torch.cat(means).cpu().detach().numpy()
@@ -136,7 +138,7 @@ def calculate_metric_mimo(model: torch.nn.Module, dataloader: DataLoader, ensemb
     try:
         targets = torch.cat(targets).cpu().detach()
     except:
-        targets[len(targets)-1] = targets[len(targets)-1].unsqueeze(dim =0)
+        targets[len(targets) - 1] = targets[len(targets) - 1].unsqueeze(dim=0)
         targets = torch.cat(targets).cpu().detach()
     result_dict['means'] = torch.cat(means).cpu().detach().numpy()
     result_dict['standard_deviations'] = torch.cat(standard_deviations).cpu().detach().numpy()
@@ -163,10 +165,10 @@ def create_metric_dataframe(metrics_dict, mimo_metric=False):
     metrics_numpy = np.concatenate([metrics_dict['means'], metrics_dict['standard_deviations']], axis=1)
     if mimo_metric:
         metrics_numpy = np.concatenate([metrics_numpy, metrics_dict['kullback_leibner_values']], axis=1)
-        #metrics_numpy = np.concatenate([metrics_numpy, ], axis=1)
+        # metrics_numpy = np.concatenate([metrics_numpy, ], axis=1)
     if mimo_metric:
-        metrics_numpy2 = np.stack([metrics_dict['kullback_leibner_sum'][:,np.newaxis], metrics_dict['predictions'],
-                                  metrics_dict['targets'][:,np.newaxis], metrics_dict['accuracy']]).transpose()
+        metrics_numpy2 = np.stack([metrics_dict['kullback_leibner_sum'][:, np.newaxis], metrics_dict['predictions'],
+                                   metrics_dict['targets'][:, np.newaxis], metrics_dict['accuracy']]).transpose()
     else:
         metrics_numpy2 = np.stack([metrics_dict['predictions'], metrics_dict['targets'],
                                    metrics_dict['accuracy']]).transpose()
@@ -176,7 +178,13 @@ def create_metric_dataframe(metrics_dict, mimo_metric=False):
     return df
 
 
-
-def get_very_high_confidence(df: pandas.DataFrame, column_name : str):
-
-    return None
+def get_very_high_confidence(dataframe: pd.DataFrame, column_name: str, ascending=True):
+    dataset_len = len(dataframe)
+    dataset_filtered = dataframe[dataframe['dataset'] == 'train']
+    dataset_filtered = dataset_filtered[dataset_filtered['accuracy'] == False]
+    dataset_filtered.sort_values(column_name, ascending=ascending, inplace=True)
+    dataset_filtered.reset_index(inplace=True)
+    num_mistakes_allowed = int(dataset_len / 100)
+    absolute_confidence = dataset_filtered.loc[num_mistakes_allowed][column_name]
+    high_confidence = dataset_filtered.loc[num_mistakes_allowed][column_name]
+    return absolute_confidence, high_confidence

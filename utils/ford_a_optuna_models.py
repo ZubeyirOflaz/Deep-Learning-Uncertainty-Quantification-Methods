@@ -179,7 +179,7 @@ def optuna_ford_a_mimo_experimental(trial, trial_parameters):
             # print(output.size())
             #output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
-            output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
+            output = nn.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
             return output
 

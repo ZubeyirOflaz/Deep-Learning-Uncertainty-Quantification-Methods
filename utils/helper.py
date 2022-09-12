@@ -27,8 +27,8 @@ class MimoTrainValidateCasting:
         train_loader = self.train_loader
         device = self.device
         model = self.model.to(device)
-        lr = self.dict['lr'].values[0]
-        gamma = self.dict['gamma'].values[0]
+        lr = self.dict['lr']
+        gamma = self.dict['gamma']
         optimizer = getattr(optim, 'Adam')(model.parameters(), lr=lr)
         scheduler = StepLR(optimizer, step_size=(len(train_loader[0])), gamma=gamma)
         for epoch in range(num_epochs):
@@ -50,7 +50,7 @@ class MimoTrainValidateCasting:
                 loss = F.nll_loss(
                     outputs.reshape(ensemble_num * batch_size, -1), targets.reshape(ensemble_num * batch_size)
                 )
-                train_loss += loss
+                train_loss += loss.item()
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
