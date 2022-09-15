@@ -12,7 +12,11 @@ from config import dataset_paths, models, casting_args
 import os
 from laplace.utils import LargestMagnitudeSubnetMask, ModuleNameSubnetMask
 import random
-
+import torch.distributions as dists
+from netcal.metrics import ECE
+from utils.evaluation_metrics import predict, calculate_metric_laplace,\
+    create_metric_dataframe, get_metrics, benchmark_laplace
+import pandas as pd
 
 
 
@@ -71,7 +75,7 @@ acc_map = (probs_map.argmax(-1) == targets).float().mean()
 # ece_map = ECE(bins=2).measure(probs_map.detach().numpy(), targets.detach().numpy())
 nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
-
+get_metrics(probs_map,targets)
 torch.cuda.empty_cache()
 # subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
 # subnetwork_indices = subnetwork_mask.select()
@@ -92,12 +96,21 @@ acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
 
-la.optimize_prior_precision(method='CV', val_loader=val_loader, pred_type='glm'
-                            , lr='7e-3', n_steps=3000, log_prior_prec_min=-2, log_prior_prec_max=2)
+la.optimize_prior_precision(method='CV', val_loader=val_loader, pred_type='nn')
 
 probs_laplace = predict(test_loader, la, laplace=True)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
 # ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
+get_metrics(probs_laplace,targets)
 
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
+
+results_dict = calculate_metric_laplace(la,test_loader,100)
+ford_a_test_dataframe = create_metric_dataframe(results_dict,mimo_metric=False)
+ford_a_test_dataframe['dataset'] = 'test'
+results_dict = calculate_metric_laplace(la,train_loader,100)
+ford_a_train_dataframe = create_metric_dataframe(results_dict,mimo_metric=False)
+ford_a_train_dataframe['dataset'] = 'train'
+ford_a_dataframe = pd.concat([ford_a_train_dataframe,ford_a_test_dataframe], ignore_index= True)
+ford_a_dataframe.to_csv('casting_mimo.csv')

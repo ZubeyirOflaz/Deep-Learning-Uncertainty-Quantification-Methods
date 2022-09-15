@@ -15,7 +15,8 @@ from laplace import Laplace
 from laplace.utils import ModuleNameSubnetMask
 import torch.distributions as dists
 from netcal.metrics import ECE
-from utils.evaluation_metrics import predict, calculate_metric_laplace, create_metric_dataframe, get_metrics
+from utils.evaluation_metrics import predict, calculate_metric_laplace,\
+    create_metric_dataframe, get_metrics, benchmark_laplace
 
 
 
@@ -24,7 +25,7 @@ train_set_path = ROOT_DIR + args['ford_a_train']
 test_set_path = ROOT_DIR + args['ford_a_test']
 model_path = ROOT_DIR + models['base_models']['ford_a']
 
-batch_size = 64
+batch_size = 36
 num_workers = 0
 
 use_cuda = torch.cuda.is_available()
@@ -48,6 +49,7 @@ with open(model_path, "rb") as fin:
     ford_a_model = pickle.load(fin)
 
 ford_a_model =  ford_a_model.to(device)
+print(ford_a_model)
 
 targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
 targets = torch.reshape(targets,(-1,)).to(device)
@@ -75,7 +77,7 @@ la = Laplace(ford_a_model, likelihood='classification', subset_of_weights='subne
 print('fitting started')
 la.fit(train_loader)
 print('fitting complete')
-la.optimize_prior_precision(method='CV', val_loader=train_loader, pred_type='nn',n_steps=25,lr=1e-2,verbose=True)
+la.optimize_prior_precision(method='CV', val_loader=test_loader, pred_type='nn', verbose=True)
 
 
 
@@ -87,7 +89,7 @@ probs_laplace = predict(test_loader, la, laplace=True).to(device)
 acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
 #ece_laplace = ECE(bins=10).measure(probs_laplace.numpy(), targets.numpy())
 nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
-get_metrics(probs_laplace,targets)
+get_metrics(probs_laplace,targets,10, n_class = 2)
 print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
 
 results_dict = calculate_metric_laplace(la,test_loader,100)
