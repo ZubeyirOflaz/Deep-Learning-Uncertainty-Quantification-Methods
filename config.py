@@ -23,6 +23,8 @@ models = {
     },
     'mimo_models' : {
         'casting_model' : 'Models\\casting_mimo_model.pyt',
-        'casting_study' : 'Models\\casting_mimo_study.pkl'
+        'casting_study' : 'Models\\casting_mimo_study.pkl',
+        'ford_a_model' : 'Models\\ford_a_mimo_model.pyt',
+        'ford_a_study' : 'Models\\ford_a_mimo_study.pkl'
     }
 }
