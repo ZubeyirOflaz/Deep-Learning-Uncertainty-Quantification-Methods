@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import time
 import logging
 import optuna
-from utils.ford_a_optuna_models import optuna_ford_a
+from utils.ford_a_optuna_models import optuna_ford_a_experimental
 import pickle
 import random
 from optuna.trial import TrialState
@@ -37,7 +37,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_wo
 def objective(trial):
     # Generate the model.
     try:
-        model = optuna_ford_a(trial).to(device)
+        model = optuna_ford_a_experimental(trial).to(device)
     except Exception as e:
         print('Infeasible model, trial will be skipped')
         print(e)
@@ -69,7 +69,6 @@ def objective(trial):
             loss.backward()
             optimizer.step()
             scheduler.step()
-        print(f'Seconds between epoch:{time.time() - t0}')
         # Validation of the model.
         model.eval()
         correct = 0
@@ -83,8 +82,7 @@ def objective(trial):
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         accuracy = correct / len(test_loader.dataset)
-        print(f'Epoch {epoch} accuracy: {accuracy}')
-        print(f'Epoch {epoch} loss: {t_loss}')
+        print(f'Epoch {epoch} accuracy: {accuracy}, loss: {t_loss}')
         trial.report(accuracy, epoch)
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
@@ -100,8 +98,8 @@ def objective(trial):
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(direction="maximize", study_name=study_name, sampler=optuna.samplers.TPESampler(n_startup_trials=80))
-    study.optimize(objective, n_trials=100, timeout=60000)
+    study = optuna.create_study(direction="maximize", study_name=study_name, sampler=optuna.samplers.TPESampler(n_startup_trials=80, multivariate=True))
+    study.optimize(objective, n_trials=150, timeout=60000)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -129,5 +127,7 @@ trial_dataframe = create_study_analysis(study.get_trials(deepcopy=True))
 with open(f'model_repo\\study_{study.study_name}.pkl', 'wb') as fout:
     pickle.dump(study, fout)
 
+
 study1 = 7447174
 study2 = 7571770
+study_3 = 7104792
