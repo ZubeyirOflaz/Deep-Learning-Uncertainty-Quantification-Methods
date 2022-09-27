@@ -15,7 +15,7 @@ import random
 import torch.distributions as dists
 from netcal.metrics import ECE
 from utils.evaluation_metrics import predict, calculate_metric_laplace,\
-    create_metric_dataframe, get_metrics, benchmark_laplace
+    create_metric_dataframe, get_metrics, benchmark_laplace, get_runtime_model_size
 import pandas as pd
 
 
@@ -76,6 +76,7 @@ acc_map = (probs_map.argmax(-1) == targets).float().mean()
 nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 get_metrics(probs_map,targets)
+preds, targets = get_runtime_model_size(train_loader,casting_model,batch_size=batch_size)
 torch.cuda.empty_cache()
 # subnetwork_mask = LargestMagnitudeSubnetMask(casting_model, n_params_subnet=256)
 # subnetwork_indices = subnetwork_mask.select()

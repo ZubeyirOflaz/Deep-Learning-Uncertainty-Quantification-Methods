@@ -16,7 +16,7 @@ from laplace.utils import ModuleNameSubnetMask
 import torch.distributions as dists
 from netcal.metrics import ECE
 from utils.evaluation_metrics import predict, calculate_metric_laplace,\
-    create_metric_dataframe, get_metrics, benchmark_laplace
+    create_metric_dataframe, get_metrics, benchmark_laplace, get_runtime_model_size
 
 
 
@@ -25,7 +25,7 @@ train_set_path = ROOT_DIR + args['ford_a_train']
 test_set_path = ROOT_DIR + args['ford_a_test']
 model_path = ROOT_DIR + models['base_models']['ford_a']
 
-batch_size = 36
+batch_size = 16
 num_workers = 0
 
 use_cuda = torch.cuda.is_available()
@@ -63,10 +63,11 @@ nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 get_metrics(probs_map,targets)
 probs_map_train = predict(train_loader,ford_a_model).to(device)
+preds, targets = get_runtime_model_size(train_loader,ford_a_model,batch_size=batch_size)
 print('Metrics for train dataset')
 get_metrics(probs_map_train,targets_train)
 
-subnetwork_mask = ModuleNameSubnetMask(ford_a_model, module_names=['29'])
+subnetwork_mask = ModuleNameSubnetMask(ford_a_model, module_names=['21'])
 subnetwork_mask.select()
 subnetwork_indices = subnetwork_mask.indices
 

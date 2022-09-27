@@ -5,6 +5,53 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def optuna_ford_a_experimental(trial):
+    layers = []
+    num_cnn_blocks = trial.suggest_int('num_cnn_blocks', 3, 3)
+    num_dense_nodes = trial.suggest_categorical('num_dense_nodes',
+                                                [64, 128, 512, 1024])
+    dense_nodes_divisor = trial.suggest_categorical('dense_nodes_divisor',
+                                                    [2, 4, 8])
+    drop_out = trial.suggest_discrete_uniform('drop_out', 0.1, 0.5, 0.1)
+    drop_out_cnn = trial.suggest_discrete_uniform('drop_out_cnn', 0.1, 0.5, 0.1)
+
+    num_filter_last = trial.suggest_categorical('out_channels', [32, 64, 128, 256])
+
+    dict_params = {'num_cnn_blocks': num_cnn_blocks,
+                   'num_dense_nodes': num_dense_nodes,
+                   'dense_nodes_divisor': dense_nodes_divisor,
+                   'drop_out': drop_out}
+    input_channels = 1
+    for i in range(dict_params['num_cnn_blocks']):
+        filter_base = [4, 8, 16, 32, 64]
+        filter_selections = [y * (i + 1) for y in filter_base]
+        num_filters = trial.suggest_categorical(f'num_filters_{i}', filter_selections)
+        kernel_size = trial.suggest_int(f'kernel_size_{i}', 3, 6)
+        # if len(layers) == 0:
+        #    input_channels = 1
+        # else:
+        #    input_channels = layers[-2].out_channels
+        layers.append(nn.Conv1d(input_channels, num_filters, kernel_size=kernel_size))
+        input_channels = num_filters
+        layers.append(nn.ReLU())
+        layers.append(nn.MaxPool1d(kernel_size=3, stride=2))
+        layers.append(nn.Dropout(drop_out_cnn))
+    layers.append(nn.AdaptiveMaxPool1d(128))
+    layers.append(nn.Conv1d(input_channels, num_filter_last, kernel_size=3))
+    layers.append(nn.Flatten())
+    linear_input = 126 * num_filter_last
+    layers.append(nn.Linear(linear_input, dict_params['num_dense_nodes']))
+    layers.append(nn.ReLU())
+    layers.append(nn.Dropout(dict_params['drop_out']))
+    layers.append(nn.Linear(dict_params['num_dense_nodes'],
+                            int(dict_params['num_dense_nodes'] / dict_params['dense_nodes_divisor'])))
+    layers.append(nn.ReLU())
+    layers.append(nn.Dropout(dict_params['drop_out']))
+    layers.append(nn.Linear(int(dict_params['num_dense_nodes'] / dict_params['dense_nodes_divisor']), 2))
+    layers.append(nn.LogSoftmax(dim=1))
+    return nn.Sequential(*layers)
+
+
 def optuna_ford_a(trial):
     layers = []
     num_cnn_blocks = trial.suggest_int('num_cnn_blocks', 3, 5)
@@ -53,7 +100,8 @@ def optuna_ford_a(trial):
 def optuna_ford_a_mimo(trial, trial_parameters):
     ensemble_num = trial_parameters['ensemble_num']
     device = trial_parameters['device']
-    #study_name = trial_parameters ['study_name']
+
+    # study_name = trial_parameters ['study_name']
 
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
@@ -81,7 +129,7 @@ def optuna_ford_a_mimo(trial, trial_parameters):
                 batch_size, ensemble_num, -1
             )  # (batch_size, ensemble_num, num_categories, ensemble_num)
             # print(output.size())
-            #output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
+            # output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
             output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
@@ -106,7 +154,7 @@ def optuna_ford_a_mimo(trial, trial_parameters):
                     pool_stride = 3
                 else:
                     pool_stride = 2
-                if i != num_layers-1:
+                if i != num_layers - 1:
                     layers.append(nn.MaxPool1d(3, pool_stride))
                     layers.append(nn.Dropout(drop_out_cnn))
                 input_channels = num_filters
@@ -149,7 +197,8 @@ def optuna_ford_a_mimo(trial, trial_parameters):
 def optuna_ford_a_mimo_experimental(trial, trial_parameters):
     ensemble_num = trial_parameters['ensemble_num']
     device = trial_parameters['device']
-    #study_name = trial_parameters ['study_name']
+
+    # study_name = trial_parameters ['study_name']
 
     class MimoCnnModel(nn.Module):
         def __init__(self, ensemble_num: int, num_categories: int):
@@ -177,7 +226,7 @@ def optuna_ford_a_mimo_experimental(trial, trial_parameters):
                 batch_size, ensemble_num, -1
             )  # (batch_size, ensemble_num, num_categories, ensemble_num)
             # print(output.size())
-            #output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
+            # output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
             output = nn.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
@@ -202,7 +251,7 @@ def optuna_ford_a_mimo_experimental(trial, trial_parameters):
                     pool_stride = 3
                 else:
                     pool_stride = 2
-                if i != num_layers-1:
+                if i != num_layers - 1:
                     layers.append(nn.MaxPool1d(3, pool_stride))
                     layers.append(nn.Dropout(drop_out_cnn))
                 input_channels = num_filters

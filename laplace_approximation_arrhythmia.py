@@ -4,14 +4,13 @@ from torch.utils.data import DataLoader
 import torch.distributions as dists
 from netcal.metrics import ECE
 import numpy
-
+import pandas as pd
 from torch.utils.data import Dataset, TensorDataset
 import pickle
-from utils.evaluation_metrics import predict, calculate_metric_laplace
+from utils.evaluation_metrics import predict, calculate_metric_laplace, get_metrics, get_runtime_model_size, create_metric_dataframe
 from config import dataset_paths, models
 import os
 from laplace.utils import ModuleNameSubnetMask
-
 
 
 
@@ -54,6 +53,7 @@ test_y = torch.tensor([i.numpy() for i in test_y]).to(torch.device('cuda')).flat
 test = TensorDataset(test_x, test_y)
 
 test_loader = DataLoader(test, shuffle=False, **params)
+print(arrhythmia_model)
 
 arrhythmia_model = arrhythmia_model.to(torch.device('cuda'))
 targets = torch.cat([y for x, y in test_loader], dim=0).cpu()
@@ -63,10 +63,13 @@ probs_map = predict(test_loader, arrhythmia_model)
 acc_map = (probs_map.argmax(-1) == targets).float().mean()
 nll_map = -dists.Categorical(probs_map).log_prob(targets).mean()
 print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
+preds, targets = get_runtime_model_size(test_loader,arrhythmia_model,batch_size=batch_size)
+get_metrics(preds,targets,n_class=16)
+
 
 torch.cuda.empty_cache()
 
-subnetwork_mask = ModuleNameSubnetMask(arrhythmia_model, module_names=['9'])
+subnetwork_mask = ModuleNameSubnetMask(arrhythmia_model, module_names=['9','6'])
 subnetwork_mask.select()
 subnetwork_indices = subnetwork_mask.indices
 
@@ -75,14 +78,23 @@ subnetwork_indices = torch.LongTensor(subnetwork_indices.cpu())
 la = Laplace(arrhythmia_model, likelihood='classification', subset_of_weights='subnetwork',
              hessian_structure='full', subnetwork_indices=subnetwork_indices)
 la.fit(train_loader)
-la.optimize_prior_precision(method='CV', val_loader=train_loader, n_samples=250, cv_loss_with_var= True, n_steps=200, lr= 5e-3)
+la.optimize_prior_precision(val_loader=train_loader, method='CV', pred_type='glm')
+                            #,n_steps=500, lr=1e-3,log_prior_prec_min=-8)
+
 
 pred = predict(test_loader, la, laplace=True)
 
-probs_laplace = predict(test_loader, la, laplace=True)
-acc_laplace = (probs_laplace.argmax(-1) == targets).float().mean()
-ece_laplace = ECE(bins=15).measure(probs_laplace.numpy(), targets.numpy())
-nll_laplace = -dists.Categorical(probs_laplace).log_prob(targets).mean()
+probs_laplace = predict(test_loader, la, laplace=True).to('cuda')
+acc_map = (probs_laplace.argmax(-1) == targets).float().mean()
+nll_map = -dists.Categorical(probs_laplace).log_prob(targets).mean()
+print(f'[MAP] Acc.: {acc_map:.1%}; NLL: {nll_map:.3}')
 
-print(f'[Laplace] Acc.: {acc_laplace:.1%} NLL: {nll_laplace:.3}')
+get_metrics(probs_laplace,targets,n_class=16)
 
+results_dict = calculate_metric_laplace(la,test_loader,100)
+arrhythmia_test_dataframe = create_metric_dataframe(results_dict,mimo_metric=False)
+arrhythmia_test_dataframe['dataset'] = 'test'
+results_dict = calculate_metric_laplace(la,train_loader,100)
+arrhythmia_train_dataframe = create_metric_dataframe(results_dict,mimo_metric=False)
+arrhythmia_train_dataframe['dataset'] = 'train'
+arrhythmia_dataframe = pd.concat([arrhythmia_train_dataframe,arrhythmia_test_dataframe], ignore_index= True)
