@@ -10,7 +10,7 @@
 <h4 align="center"> Repository of a thesis for the comparison of Laplace Approximation and Multi-Input Multi-Output neural network models for systems that have limited computational resources. The final version of the thesis can be obtained from <a href="docs\thesis_final.pdf" target="_blank">here</a>.</h4>
 
 <p align="center">
-License:![license](https://img.shields.io/github/license/ZubeyirOflaz/Deep-Learning-Uncertainty-Quantification-Methods)
+<img src="https://img.shields.io/github/license/ZubeyirOflaz/Deep-Learning-Uncertainty-Quantification-Methods" alt="plot" width="75">
 
 <p align="center">
   <a href="#abstract">Abstract</a> •
