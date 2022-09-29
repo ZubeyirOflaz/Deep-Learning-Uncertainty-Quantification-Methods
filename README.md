@@ -47,7 +47,7 @@ The main folder of the repository contains the python scripts and Jupyter notebo
 ## Functionalities
 
 This repository contains code that can be of further use in the following ways:
-- Examples of MIMO models for dense and convolutional neural network models that use Optuna library for hyperparameter selection. Classes for the loading, training and validating of the models that are created, in Optuna studies.
+- Examples of MIMO models for dense and convolutional neural network models that use the Optuna library for hyperparameter selection. Classes for the loading, training and validating of the models that are created, in Optuna studies.
 - Example use of Laplace Redux library for the Laplace approximation of conventional neural networks
 - Functions that retrieve, process and make statistical analysis of the results of non-deterministic models such as Laplace models, or multiple outputs such as MIMO models, and return a structured model output dictionary with all this information.
 - Functions that process the model output dictionary to create Pandas dataframe and make further analysis/filtering on these results
@@ -58,17 +58,17 @@ This repository contains code that can be of further use in the following ways:
 
 ## Issues
 
-- Some Laplace models that were used in the thesis were too big to include in the Github repository. They can be recreated by using the Laplace approximation scripts.
+- Some Laplace models that were used in the thesis were too big to include in the GitHub repository. They can be recreated by using the Laplace approximation scripts.
 - Casting datasets (both original and modified) were included as a zip file and the use of these datasets in the scripts requires the unzipping of related zip files
 - The code, in general, is not well commented, the parts of this repository that would be useful by themselves will be shared further as standalone projects or Gists and only then will be extensively commented
 
 
 ## To do
 
-- Create a separate repository for MIMO convolutional models created with Optuna
+- Create a separate repository for MIMO convolutional models created with the Optuna library
 - Create Gist files for helper functions that would have further use
 - Refactor the file structure in order to make it easily understandable to use
-- Add Anaconda environment file
+- Add the functions that were used during the creation of plots and determination of certainty groups
 
 
 ## License

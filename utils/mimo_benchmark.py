@@ -116,9 +116,6 @@ train_loader_n = [torch.utils.data.DataLoader(train_set, batch_size=batch_size,
 test_loader_n = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
 
-casting_study_path = 'N:\Thesis\model_repo\study_273563.pkl'
-casting_model_path = r'N:\Thesis\utils\casting_mimo.pyt'
-
 model_instance = 135
 model_path = model_paths['mimo_models']['casting_model']
 study_path = model_paths['mimo_models']['casting_study']

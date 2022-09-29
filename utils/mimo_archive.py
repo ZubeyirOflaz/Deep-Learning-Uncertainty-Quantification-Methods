@@ -16,11 +16,11 @@ from optuna.trial import TrialState
 from config import dataset_paths as args
 import random
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+'''ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 train_set_path = ROOT_DIR + args['casting_train']
 test_set_path = ROOT_DIR + args['casting_test']
-
-batch_size = 8
+'''
+batch_size = 4
 image_resolution = 63
 num_workers = 0
 ensemble_num = 3
@@ -36,13 +36,14 @@ def mimo_cnn_model(trial):
         def __init__(self, ensemble_num: int, num_categories: int):
             super(MimoCnnModel, self).__init__()
             self.output_dim = trial.suggest_int('output_dim', 64, 1024)
-            self.num_channels = trial.suggest_int('num_channels', 64, 382)
+            self.num_channels = trial.suggest_int('num_channels', 64, 256)
             self.final_img_resolution = 6
             self.input_dim = self.num_channels * ((self.final_img_resolution -2) *
                                                   ((self.final_img_resolution * ensemble_num)-8))
             self.conv_module = ConvModule(self.num_channels, self.final_img_resolution, ensemble_num)
             self.linear_module = LinearModule(self.input_dim, self.output_dim)
             self.output_layer = nn.Linear(self.output_dim, num_categories * ensemble_num)
+            self.softmax = nn.LogSoftmax(dim=-1)
 
         def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
             batch_size = input_tensor.size()[0]
@@ -61,7 +62,7 @@ def mimo_cnn_model(trial):
             # print(output.size())
             # output = torch.diagonal(output, offset=0, dim1=1, dim2=3).transpose(2, 1)
             # print(output.size())
-            output = F.log_softmax(output, dim=-1)  # (batch_size, ensemble_num, num_categories)
+            output = self.softmax(output)  # (batch_size, ensemble_num, num_categories)
             # print(output.size())
             return output
 
@@ -69,15 +70,16 @@ def mimo_cnn_model(trial):
         def __init__(self, num_channels: int, final_img_resolution: int, ensemble_num: int):
             super(ConvModule, self).__init__()
             layers = []
-            num_layers = trial.suggest_int('num_cnn_layers', 2, 2)
+            num_layers = trial.suggest_int('num_cnn_layers', 2,2)
+            cnn_dropout = trial.suggest_discrete_uniform('drop_out_cnn', 0.05, 0.5, 0.05)
             input_channels = 1
             for i in range(num_layers):
-                filter_base = [4, 8, 16]
-                filter_selections = [i * (num_layers + 1) for i in filter_base]
+                filter_base = [4, 8, 16, 32,64]
+                filter_selections = [y * (i + 1) for y in filter_base]
                 num_filters = trial.suggest_categorical(f'num_filters_{i}', filter_selections)
-                kernel_size = trial.suggest_int(f'kernel_size_{i}', 2, 3)
+                kernel_size = trial.suggest_int(f'kernel_size_{i}', 3, 5)
 
-                if i < 2:
+                if i < 1:
                     pool_stride = 2
                 else:
                     pool_stride = 1
@@ -90,10 +92,10 @@ def mimo_cnn_model(trial):
                 if i < num_layers-1:
                     layers.append(nn.ReLU())
                     layers.append(nn.MaxPool2d((2, 2 * ensemble_num), pool_stride))
+                    layers.append(nn.Dropout(cnn_dropout))
                 input_channels = num_filters
             layers.append(nn.AdaptiveMaxPool2d((final_img_resolution, final_img_resolution * ensemble_num)))
             layers.append(nn.Conv2d(input_channels, num_channels, (3, 3 * ensemble_num)))
-            layers.append(nn.ReLU())
             self.layers = layers
             self.module = nn.Sequential(*self.layers).to(device)
 
@@ -106,7 +108,7 @@ def mimo_cnn_model(trial):
             super(LinearModule, self).__init__()
             layers = []
             in_features = input_dimension
-            num_layers = 2  # trial.suggest_int('num_layers', 1, 3)
+            num_layers = 1  # trial.suggest_int('num_layers', 1, 3)
             for i in range(num_layers):
                 min_lim = int(512 / int(i+1))
                 max_lim = int(2048 / (int(i+1)))
